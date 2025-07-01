@@ -41,4 +41,11 @@ export const escrow = {
   getIdeaContributions: (ideaId) => api.get(`/escrow/idea/${ideaId}`),
 };
 
+export const questions = {
+  add: (data) => api.post('/questions/add', data),
+  getByIdea: (ideaId) => api.get(`/questions/idea/${ideaId}`),
+  bid: (data) => api.post('/questions/bid', data),
+  getMinimumEscrow: () => api.get('/questions/minimum-escrow'),
+};
+
 export default api;

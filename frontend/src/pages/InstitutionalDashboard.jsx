@@ -5,7 +5,7 @@ import { ideas, escrow } from '../services/api';
 import { 
   DollarSign, LogOut, TrendingUp, Plus, Trophy, Clock,
   Users, BarChart3, ArrowUpRight, AlertCircle, Loader2,
-  Filter, Search, ChevronRight, Eye, Wallet, RefreshCw
+  Filter, Search, ChevronRight, Eye, Wallet, RefreshCw, MessageSquare
 } from 'lucide-react';
 
 const InstitutionalDashboard = () => {
@@ -237,9 +237,9 @@ const InstitutionalDashboard = () => {
                                   <span className="text-white font-semibold">{idea._count?.contributions || 0}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <TrendingUp size={16} className="text-purple-500" />
-                                  <span className="text-gray-400">Sector:</span>
-                                  <span className="text-white font-semibold">{idea.sector || 'N/A'}</span>
+                                  <MessageSquare size={16} className="text-purple-500" />
+                                  <span className="text-gray-400">Questions:</span>
+                                  <span className="text-white font-semibold">{idea._count?.questions || 0}</span>
                                 </div>
                               </div>
                             </div>
@@ -255,8 +255,12 @@ const InstitutionalDashboard = () => {
                                 <Plus size={16} />
                                 Contribute
                               </button>
-                              <button className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
+                              <button 
+                                onClick={() => navigate(`/idea/${idea.id}`)}
+                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                              >
                                 <Eye size={16} />
+                                View
                               </button>
                             </div>
                           </div>
@@ -297,19 +301,33 @@ const InstitutionalDashboard = () => {
                                   <span className="text-gray-400">Needs:</span>
                                   <span className="text-white font-semibold">{formatCurrency(5100 - idea.totalEscrow)} more</span>
                                 </div>
+                                <div className="flex items-center gap-2">
+                                  <MessageSquare size={16} className="text-purple-500" />
+                                  <span className="text-gray-400">Questions:</span>
+                                  <span className="text-white font-semibold">{idea._count?.questions || 0}</span>
+                                </div>
                               </div>
                             </div>
                             
-                            <button
-                              onClick={() => {
-                                setSelectedIdea(idea);
-                                setShowContributeModal(true);
-                              }}
-                              className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors flex items-center gap-2 ml-4"
-                            >
-                              <Plus size={16} />
-                              Pool Funds
-                            </button>
+                            <div className="flex gap-2 ml-4">
+                              <button
+                                onClick={() => {
+                                  setSelectedIdea(idea);
+                                  setShowContributeModal(true);
+                                }}
+                                className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                              >
+                                <Plus size={16} />
+                                Pool Funds
+                              </button>
+                              <button 
+                                onClick={() => navigate(`/idea/${idea.id}`)}
+                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                              >
+                                <Eye size={16} />
+                                View
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -354,7 +372,11 @@ const InstitutionalDashboard = () => {
                   ) : (
                     <div className="space-y-4">
                       {myContributions.contributions?.map((contribution) => (
-                        <div key={contribution.id} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                        <div 
+                          key={contribution.id} 
+                          className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-gray-600 transition-all cursor-pointer"
+                          onClick={() => navigate(`/idea/${contribution.idea.id}`)}
+                        >
                           <div className="flex justify-between items-center">
                             <div>
                               <h4 className="font-semibold text-white mb-1">{contribution.idea.title}</h4>
@@ -364,6 +386,7 @@ const InstitutionalDashboard = () => {
                                   {contribution.wasRefunded ? 'Refunded' : 'Active'}
                                 </span></span>
                                 <span>Date: {new Date(contribution.createdAt).toLocaleDateString()}</span>
+                                <span>Rank: <span className="text-white">#{contribution.idea.escrowRank || 'Unranked'}</span></span>
                               </div>
                             </div>
                             <ChevronRight className="text-gray-500" size={20} />

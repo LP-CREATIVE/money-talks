@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import InstitutionalDashboard from './pages/InstitutionalDashboard'
 import SubmitIdea from './pages/SubmitIdea'
+import IdeaDetail from './pages/IdeaDetail'
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/institutional" element={<InstitutionalDashboard />} />
           <Route path="/institutional/submit-idea" element={<SubmitIdea />} />
+          <Route path="/idea/:id" element={<IdeaDetail />} />
           <Route path="/researcher/*" element={<div className="p-8">Researcher Dashboard - Coming Soon</div>} />
         </Routes>
       </Router>
