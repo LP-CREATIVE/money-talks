@@ -20,6 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 const authRoutes = require('./routes/auth');
 const ideasRoutes = require('./routes/ideas');
 const escrowRoutes = require('./routes/escrow');
+const questionsRoutes = require('./routes/questions');
 
 // Health check
 app.get('/health', (req, res) => {
@@ -30,6 +31,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/ideas', ideasRoutes);
 app.use('/api/escrow', escrowRoutes);
+app.use('/api/questions', questionsRoutes);
 
 // Error handling
 app.use((err, req, res, next) => {
