@@ -61,9 +61,11 @@ const login = async (req, res) => {
 
     // Find user
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { email },
+      include: {
+        expertProfile: true
+      }
     });
-
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -85,7 +87,7 @@ const login = async (req, res) => {
         email: user.email,
         userType: user.userType,
         organizationName: user.organizationName,
-        walletBalance: user.walletBalance,
+        expertProfile: user.expertProfile,        walletBalance: user.walletBalance,
         reputationScore: user.reputationScore
       }
     });
@@ -99,9 +101,11 @@ const login = async (req, res) => {
 const getMe = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.userId }
+      where: { email },
+      include: {
+        expertProfile: true
+      }
     });
-
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -112,7 +116,7 @@ const getMe = async (req, res) => {
         email: user.email,
         userType: user.userType,
         organizationName: user.organizationName,
-        walletBalance: user.walletBalance,
+        expertProfile: user.expertProfile,        walletBalance: user.walletBalance,
         reputationScore: user.reputationScore,
         isVerified: user.isVerified
       }

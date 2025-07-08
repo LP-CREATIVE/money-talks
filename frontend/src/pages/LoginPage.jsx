@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { DollarSign, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Mail, Lock, AlertCircle, LogIn } from 'lucide-react';
 
 const LoginPage = () => {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  const { login } = useAuth();
-  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -20,9 +19,22 @@ const LoginPage = () => {
     const result = await login(email, password);
     
     if (result.success) {
-      navigate('/institutional');
+      // Route based on user type
+      if (result.user.userType === "INSTITUTIONAL") {
+        navigate("/institutional");
+      } else if (result.user.userType === "RETAIL") {
+        // Check if user has expert profile
+        if (result.user.expertProfile) {
+          navigate("/expert/dashboard");
+        } else {
+          navigate("/researcher");
+        }
+      } else {
+        // Default fallback
+        navigate("/");
+      }
     } else {
-      setError(result.error || 'Login failed');
+      setError(result.error || "Login failed");
     }
     
     setLoading(false);
@@ -33,17 +45,18 @@ const LoginPage = () => {
       <div className="max-w-md w-full">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-6">
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-3 rounded-lg">
-              <DollarSign size={32} className="text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-white">MONEY TALKS</h1>
-          </div>
-          <h2 className="text-xl text-gray-300">Welcome back</h2>
+          <h1 className="text-4xl font-bold text-white mb-2">
+            MONEY TALKS
+          </h1>
+          <p className="text-gray-400">Investment Research Platform</p>
         </div>
 
         {/* Login Form */}
-        <div className="bg-gray-800 rounded-xl p-8 shadow-2xl border border-gray-700">
+        <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700">
+          <h2 className="text-2xl font-semibold text-white mb-6">
+            Sign In
+          </h2>
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div className="bg-red-900/50 border border-red-700 rounded-lg p-3 flex items-center gap-2">
@@ -86,22 +99,13 @@ const LoginPage = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="flex items-center">
-                <input type="checkbox" className="bg-gray-700 border-gray-600 rounded" />
-                <span className="ml-2 text-sm text-gray-400">Remember me</span>
-              </label>
-              <a href="#" className="text-sm text-green-500 hover:text-green-400">
-                Forgot password?
-              </a>
-            </div>
-
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 rounded-lg transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              <LogIn size={20} />
+              {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
 
@@ -109,9 +113,18 @@ const LoginPage = () => {
             <p className="text-gray-400">
               Don't have an account?{' '}
               <Link to="/register" className="text-green-500 hover:text-green-400 font-medium">
-                Sign up
+                Sign Up
               </Link>
             </p>
+          </div>
+
+          {/* Test Credentials */}
+          <div className="mt-8 p-4 bg-gray-900/50 rounded-lg border border-gray-700">
+            <p className="text-xs text-gray-500 mb-2">Test Credentials:</p>
+            <div className="space-y-1 text-xs text-gray-400">
+              <p>Institutional: test.institutional@moneytalks.com / testpassword123</p>
+              <p>Expert: expert@moneytalks.com / expertpass123</p>
+            </div>
           </div>
         </div>
       </div>

@@ -38,17 +38,28 @@ const RegisterPage = () => {
       return;
     }
 
+    // Only require organizationName for institutional users
+    if (formData.userType === 'INSTITUTIONAL' && !formData.organizationName) {
+      setError('Organization name is required for institutional accounts');
+      return;
+    }
+
     setLoading(true);
 
     const result = await register({
       email: formData.email,
       password: formData.password,
       userType: formData.userType,
-      organizationName: formData.userType === 'INSTITUTIONAL' ? formData.organizationName : null
+      organizationName: formData.userType === 'INSTITUTIONAL' ? formData.organizationName : undefined
     });
     
     if (result.success) {
-      navigate('/institutional');
+      // Navigate based on user type
+      if (formData.userType === 'INSTITUTIONAL') {
+        navigate('/institutional');
+      } else {
+        navigate('/researcher'); // or wherever retail users should go
+      }
     } else {
       setError(result.error || 'Registration failed');
     }
@@ -127,7 +138,6 @@ const RegisterPage = () => {
                     onChange={handleChange}
                     className="w-full bg-gray-700 border border-gray-600 rounded-lg pl-10 pr-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-green-500 transition-colors"
                     placeholder="Your Company LLC"
-                    required
                   />
                 </div>
               </div>

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { ideas, questions, escrow } from '../services/api';
+import AnswerCard from '../components/AnswerCard';
+import { ideas, questions, escrow, answers } from '../services/api';
 import { 
   DollarSign, ArrowLeft, MessageSquare, Trophy, 
   AlertCircle, Loader2, Plus, TrendingUp, Users,
-  Gavel, Target, CheckCircle, Clock
+  Gavel, Target, CheckCircle, Clock, Search
 } from 'lucide-react';
 
 const IdeaDetail = () => {
@@ -26,6 +27,7 @@ const IdeaDetail = () => {
   const [submitting, setSubmitting] = useState(false);
   const [minimumEscrow, setMinimumEscrow] = useState(5000);
   const [userContribution, setUserContribution] = useState(0);
+  const [questionAnswers, setQuestionAnswers] = useState({});
 
   useEffect(() => {
     fetchData();
@@ -53,10 +55,30 @@ const IdeaDetail = () => {
       // Get minimum escrow for additional questions
       const minEscrowResponse = await questions.getMinimumEscrow();
       setMinimumEscrow(minEscrowResponse.data.minimumEscrow);
+
+      // Fetch answers for all questions that have them
+      const allQuestions = [...questionsResponse.data.top3Questions, ...questionsResponse.data.otherQuestions];
+      for (const question of allQuestions) {
+        if (question._count?.answers > 0) {
+          fetchAnswersForQuestion(question.id);
+        }
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     }
     setLoading(false);
+  };
+
+  const fetchAnswersForQuestion = async (questionId) => {
+    try {
+      const response = await answers.getByQuestion(questionId);
+      setQuestionAnswers(prev => ({
+        ...prev,
+        [questionId]: response.data.answers
+      }));
+    } catch (error) {
+      console.error('Error fetching answers:', error);
+    }
   };
 
   const handleAddQuestion = async () => {
@@ -176,7 +198,7 @@ const IdeaDetail = () => {
             {/* Questions Section */}
             <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-semibold text-white">Research Questions</h2>
+                <h2 className="text-lg font-semibold text-white">Research Questions & Answers</h2>
                 {canAddQuestions && (
                   <button
                     onClick={() => setShowQuestionModal(true)}
@@ -191,65 +213,92 @@ const IdeaDetail = () => {
               {/* Top 3 Questions */}
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-gray-400 mb-3">Top 3 Questions</h3>
-                <div className="space-y-3">
+                <div className="space-y-6">
                   {[1, 2, 3].map((slot) => {
                     const question = ideaQuestions.top3Questions.find(q => q.questionSlot === slot);
                     
                     return (
-                      <div key={slot} className="bg-gray-700/50 rounded-lg p-4">
-                        {question ? (
-                          <>
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-xs font-semibold text-green-500">SLOT {slot}</span>
-                                  <span className="text-xs text-gray-500">
-                                    by {question.submittedBy.organizationName}
-                                  </span>
+                      <div key={slot} className="space-y-3">
+                        <div className="bg-gray-700/50 rounded-lg p-4">
+                          {question ? (
+                            <>
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-xs font-semibold text-green-500">SLOT {slot}</span>
+                                    <span className="text-xs text-gray-500">
+                                      by {question.submittedBy.organizationName}
+                                    </span>
+                                  </div>
+                                  <p className="text-white">{question.text}</p>
                                 </div>
-                                <p className="text-white">{question.text}</p>
+                                <div className="text-right ml-4">
+                                  <p className="text-sm text-gray-400">Current Bid</p>
+                                  <p className="text-lg font-semibold text-green-500">
+                                    {formatCurrency(question.bidAmount)}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="text-right ml-4">
-                                <p className="text-sm text-gray-400">Current Bid</p>
-                                <p className="text-lg font-semibold text-green-500">
-                                  {formatCurrency(question.bidAmount)}
-                                </p>
+                              <div className="flex items-center justify-between mt-3">
+                                <div className="flex items-center gap-4">
+                                  <span className="text-xs text-gray-500">
+                                    {question._count.answers} answers
+                                  </span>
+                                  <button
+                                    onClick={() => navigate(`/institutional/matching/${question.id}`)}
+                                    className="text-xs text-blue-500 hover:text-blue-400 flex items-center gap-1"
+                                  >
+                                    <Search size={12} />
+                                    Find Experts
+                                  </button>
+                                </div>
+                                {canAddQuestions && question.submittedBy.id !== user?.id && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedQuestion(question);
+                                      setSelectedSlot(slot);
+                                      setBidAmount(question.bidAmount + 1000);
+                                      setShowBidModal(true);
+                                    }}
+                                    className="text-xs text-green-500 hover:text-green-400"
+                                  >
+                                    Outbid
+                                  </button>
+                                )}
                               </div>
-                            </div>
-                            <div className="flex items-center justify-between mt-3">
-                              <span className="text-xs text-gray-500">
-                                {question._count.answers} answers
-                              </span>
-                              {canAddQuestions && question.submittedBy.id !== user?.id && (
+                            </>
+                          ) : (
+                            <div className="text-center py-4">
+                              <Gavel className="mx-auto text-gray-600 mb-2" size={24} />
+                              <p className="text-sm text-gray-500 mb-2">Slot {slot} Available</p>
+                              {canAddQuestions && (
                                 <button
                                   onClick={() => {
                                     setSelectedSlot(slot);
-                                    setBidAmount(question.bidAmount + 1000);
+                                    setBidAmount('5000');
                                     setShowBidModal(true);
                                   }}
                                   className="text-xs text-green-500 hover:text-green-400"
                                 >
-                                  Outbid
+                                  Bid for this slot
                                 </button>
                               )}
                             </div>
-                          </>
-                        ) : (
-                          <div className="text-center py-4">
-                            <Gavel className="mx-auto text-gray-600 mb-2" size={24} />
-                            <p className="text-sm text-gray-500 mb-2">Slot {slot} Available</p>
-                            {canAddQuestions && (
-                              <button
-                                onClick={() => {
-                                  setSelectedSlot(slot);
-                                  setBidAmount('5000');
-                                  setShowBidModal(true);
-                                }}
-                                className="text-xs text-green-500 hover:text-green-400"
-                              >
-                                Bid for this slot
-                              </button>
-                            )}
+                          )}
+                        </div>
+
+                        {/* Show answers for this question */}
+                        {question && questionAnswers[question.id] && questionAnswers[question.id].length > 0 && (
+                          <div className="ml-6 space-y-3">
+                            <h4 className="text-sm font-semibold text-gray-400">Answers:</h4>
+                            {questionAnswers[question.id].map((answer) => (
+                              <AnswerCard
+                                key={answer.id}
+                                answer={answer}
+                                currentUserId={user?.id}
+                                onUpdate={() => fetchAnswersForQuestion(question.id)}
+                              />
+                            ))}
                           </div>
                         )}
                       </div>
@@ -262,28 +311,56 @@ const IdeaDetail = () => {
               {ideaQuestions.otherQuestions.length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-gray-400 mb-3">Other Questions</h3>
-                  <div className="space-y-2">
+                  <div className="space-y-6">
                     {ideaQuestions.otherQuestions.map((question) => (
-                      <div key={question.id} className="bg-gray-700/30 rounded-lg p-3">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm text-gray-300">{question.text}</p>
-                          {canAddQuestions && (
-                            <button
-                              onClick={() => {
-                                setSelectedQuestion(question);
-                                setSelectedSlot(1);
-                                setBidAmount('5000');
-                                setShowBidModal(true);
-                              }}
-                              className="text-xs text-green-500 hover:text-green-400 ml-4"
-                            >
-                              Bid for top 3
-                            </button>
-                          )}
+                      <div key={question.id} className="space-y-3">
+                        <div className="bg-gray-700/30 rounded-lg p-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm text-gray-300">{question.text}</p>
+                              <div className="flex items-center gap-4 mt-1">
+                                <p className="text-xs text-gray-500">
+                                  by {question.submittedBy.organizationName} • {question._count.answers} answers
+                                </p>
+                                <button
+                                  onClick={() => navigate(`/institutional/matching/${question.id}`)}
+                                  className="text-xs text-blue-500 hover:text-blue-400 flex items-center gap-1"
+                                >
+                                  <Search size={12} />
+                                  Find Experts
+                                </button>
+                              </div>
+                            </div>
+                            {canAddQuestions && (
+                              <button
+                                onClick={() => {
+                                  setSelectedQuestion(question);
+                                  setSelectedSlot(1);
+                                  setBidAmount('5000');
+                                  setShowBidModal(true);
+                                }}
+                                className="text-xs text-green-500 hover:text-green-400 ml-4"
+                              >
+                                Bid for top 3
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          by {question.submittedBy.organizationName}
-                        </p>
+
+                        {/* Show answers for this question */}
+                        {questionAnswers[question.id] && questionAnswers[question.id].length > 0 && (
+                          <div className="ml-6 space-y-3">
+                            <h4 className="text-sm font-semibold text-gray-400">Answers:</h4>
+                            {questionAnswers[question.id].map((answer) => (
+                              <AnswerCard
+                                key={answer.id}
+                                answer={answer}
+                                currentUserId={user?.id}
+                                onUpdate={() => fetchAnswersForQuestion(question.id)}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

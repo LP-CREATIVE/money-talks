@@ -1,0 +1,11 @@
+firstName,lastName,email,confidence,title,department,seniority,company
+"Bharath","Pasala","bharath.pasala@goldmansachs.com",99,"Senior Vice President, Data Strategy","it","senior","Goldman Sachs"
+"Stephen","Hawinkels","stephen.hawinkels@goldmansachs.com",99,"Managing Director","executive","executive","Goldman Sachs"
+"Sasha","Munn","sasha.munn@goldmansachs.com",99,"Managing Director","executive","executive","Goldman Sachs"
+"Ting","Wang","ting.wang@goldmansachs.com",99,"Managing Director","executive","executive","Goldman Sachs"
+"Rakesh","Shetty","rakesh.shetty@goldmansachs.com",99,"Vice President","executive","executive","Goldman Sachs"
+"Ranjani","Iyer","ranjani.iyer@goldmansachs.com",99,"Vice President, Recruiting","hr","","Goldman Sachs"
+"Elena","DiMeo","elena.dimeo@goldmansachs.com",99,"Vice President","executive","executive","Goldman Sachs"
+"Stuart","Cornell","stuart.cornell@goldmansachs.com",99,"Director of Human Resources","hr","executive","Goldman Sachs"
+"Edward","Naylor","edward.naylor@goldmansachs.com",99,"Managing Director","executive","executive","Goldman Sachs"
+"Cincy","Anub","vivek.bantwal@goldmansachs.com",99,"Managing Director","executive","executive","Goldman Sachs"

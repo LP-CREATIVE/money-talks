@@ -6,7 +6,8 @@ const {
   addQuestion, 
   getIdeaQuestions, 
   bidOnQuestionSlot,
-  getMinimumEscrow
+  getMinimumEscrow,
+  getQuestionById
 } = require('../controllers/questionsController');
 
 // Validation rules
@@ -27,5 +28,6 @@ router.post('/add', authenticate, requireInstitutional, addQuestionValidation, a
 router.get('/idea/:ideaId', getIdeaQuestions);
 router.post('/bid', authenticate, requireInstitutional, bidValidation, bidOnQuestionSlot);
 router.get('/minimum-escrow', getMinimumEscrow);
+router.get('/:id', authenticate, getQuestionById);
 
 module.exports = router;

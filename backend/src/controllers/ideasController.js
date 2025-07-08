@@ -3,52 +3,51 @@ const { validationResult } = require('express-validator');
 
 // Get all ideas (Top 100 + paginated)
 const getIdeas = async (req, res) => {
- try {
-   const { status = 'TOP_100', page = 1, limit = 20 } = req.query;
-   const skip = (page - 1) * limit;
+  try {
+    console.log("Getting ideas with params:", req.query);
+    
+    const ideas = await prisma.institutionalIdea.findMany({
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            email: true,
+            organizationName: true
+          }
+        },
+        contributions: {
+          select: {
+            amount: true,
+            isRefundable: true,
+            wasRefunded: true
+          }
+        },
+        questions: {
+          select: {
+            id: true,
+            text: true,
+            createdAt: true
+          }
+        }
+      }
+    });
 
-   const ideas = await prisma.institutionalIdea.findMany({
-     where: { status },
-     orderBy: { totalEscrow: 'desc' },
-     skip,
-     take: parseInt(limit),
-     include: {
-       createdBy: {
-         select: {
-           id: true,
-           email: true,
-           organizationName: true
-         }
-       },
-       _count: {
-         select: {
-           contributions: true,
-           questions: true
-         }
-       }
-     }
-   });
-
-   const total = await prisma.institutionalIdea.count({
-     where: { status }
-   });
-
-   res.json({
-     ideas,
-     pagination: {
-       page: parseInt(page),
-       limit: parseInt(limit),
-       total,
-       pages: Math.ceil(total / limit)
-     }
-   });
- } catch (error) {
-   console.error('Get ideas error:', error);
-   res.status(500).json({ error: 'Internal server error' });
- }
-};
-
-// Create new idea (Institutional users only)
+    console.log(`Found ${ideas.length} ideas`);
+    console.log("First idea with questions:", ideas[0]?.questions);
+    res.json({
+      ideas,
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: ideas.length,
+        pages: 1
+      }
+    });
+  } catch (error) {
+    console.error("Get ideas error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};// Create new idea (Institutional users only)
 const createIdea = async (req, res) => {
  try {
    const errors = validationResult(req);
@@ -100,67 +99,53 @@ const createIdea = async (req, res) => {
 
 // Get single idea with details
 const getIdeaById = async (req, res) => {
- try {
-   const { id } = req.params;
+  try {
+    const { id } = req.params;
 
-   const idea = await prisma.institutionalIdea.findUnique({
-     where: { id },
-     include: {
-       createdBy: {
-         select: {
-           id: true,
-           email: true,
-           organizationName: true
-         }
-       },
-       questions: {
-         include: {
-           submittedBy: {
-             select: {
-               id: true,
-               organizationName: true
-             }
-           },
-           _count: {
-             select: {
-               answers: true
-             }
-           }
-         }
-       },
-       contributions: {
-         include: {
-           user: {
-             select: {
-               id: true,
-               organizationName: true
-             }
-           }
-         }
-       }
-     }
-   });
+    const idea = await prisma.institutionalIdea.findUnique({
+      where: { id },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            email: true,
+            organizationName: true
+          }
+        },
+        contributions: {
+          select: {
+            amount: true,
+            wasRefunded: true
+          }
+        },
+        questions: {
+          include: {
+            submittedBy: {
+              select: {
+                id: true,
+                organizationName: true
+              }
+            },
+            _count: {
+              select: {
+                answers: true
+              }
+            }
+          }
+        }
+      }
+    });
 
-   if (!idea) {
-     return res.status(404).json({ error: 'Idea not found' });
-   }
+    if (!idea) {
+      return res.status(404).json({ error: "Idea not found" });
+    }
 
-   // Parse expert search criteria if it exists
-   if (idea.expertSearchCriteria) {
-     try {
-       idea.expertSearchCriteria = JSON.parse(idea.expertSearchCriteria);
-     } catch (e) {
-       console.error('Error parsing expert search criteria:', e);
-     }
-   }
-
-   res.json(idea);
- } catch (error) {
-   console.error('Get idea error:', error);
-   res.status(500).json({ error: 'Internal server error' });
- }
+    res.json(idea);
+  } catch (error) {
+    console.error("Get idea by ID error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 };
-
 // Update rankings (will be called by cron job)
 const updateRankings = async (req, res) => {
  try {
