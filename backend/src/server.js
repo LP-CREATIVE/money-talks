@@ -12,6 +12,10 @@ const app = express();
 
 // Trust proxy for Railway HTTPS
 app.set("trust proxy", true);
+
+// Force HTTPS headers
+const forceHttps = require("./middleware/forceHttps");
+app.use(forceHttps);
 const PORT = process.env.PORT || 3001;
 
 // Middleware
