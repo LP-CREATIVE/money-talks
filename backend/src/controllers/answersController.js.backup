@@ -1,0 +1,574 @@
+const prisma = require('../utils/prisma');
+const paymentService = require('../services/paymentService');
+
+// Submit an expert answer
+const submitExpertAnswer = async (req, res) => {
+    console.log("Auth info - userId:", req.userId, "userType:", req.userType, "user:", req.user);
+    console.log("Request body:", req.body);
+  try {
+    const expertId = req.user.id;
+    const { questionId, answerText, ideaId } = req.body;
+
+    // Validate answer text length
+    if (!answerText || answerText.length < 100) {
+      return res.status(400).json({ 
+        error: 'Answer must be at least 100 characters long' 
+      });
+    }
+
+    // Get the question details to calculate its value
+    const question = await prisma.validationQuestion.findUnique({
+      where: { id: questionId },
+      include: {
+        idea: {
+          include: {
+            contributions: true
+          }
+        }
+      }
+    });
+
+    if (!question) {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+
+    // Calculate the question value based on total escrow divided by number of questions
+    const totalEscrow = question.idea.contributions.reduce((sum, c) => sum + c.amount, 0);
+    const questionCount = await prisma.validationQuestion.count({
+      where: { ideaId: question.ideaId }
+    });
+    const questionValue = questionCount > 0 ? totalEscrow / questionCount : 0;
+
+    // Check if the expert has already answered this question
+    const existingAnswer = await prisma.userAnswer.findFirst({
+      where: {
+        questionId,
+        userId: expertId
+      }
+    });
+
+    if (existingAnswer) {
+      return res.status(400).json({ 
+        error: 'You have already answered this question' 
+      });
+    }
+
+    // Create the answer
+    const answer = await prisma.userAnswer.create({
+      data: {
+        questionId,
+        userId: expertId,
+        content: answerText,
+        // ideaId removed - not in schema
+      }
+    });
+
+    // Create the ExpertAnswer record with the calculated questionValue
+    const expertAnswer = await prisma.ExpertAnswer.create({
+      data: {
+        answer: { connect: { id: answer.id } },
+        expertProfile: { connect: { userId: expertId } },
+        questionValue: questionValue
+      }
+    });    // Return the complete answer with question details
+    const completeAnswer = await prisma.userAnswer.findUnique({
+      where: { id: answer.id },
+      include: {
+        question: {
+          select: {
+            id: true,
+            text: true,
+            ideaId: true
+          }
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            organizationName: true,
+            userType: true,
+            isVerified: true
+          }
+        },
+        ExpertAnswer: true
+      }
+    });
+
+    res.json({ 
+      success: true,
+      answer: completeAnswer,
+      questionValue: questionValue
+    });
+
+  } catch (error) {
+    console.error('Error submitting expert answer:', error);
+    res.status(500).json({ 
+      error: 'Failed to submit answer',
+      details: error.message 
+    });
+  }
+};
+
+// Get all answers for a specific question
+const getAnswersByQuestion = async (req, res) => {
+  try {
+    const { questionId } = req.params;
+
+    const answers = await prisma.userAnswer.findMany({
+      where: { questionId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            organizationName: true,
+            userType: true,
+            isVerified: true
+          }
+        },
+        ExpertAnswer: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    res.json(answers);
+  } catch (error) {
+    console.error('Error fetching answers:', error);
+    res.status(500).json({ error: 'Failed to fetch answers' });
+  }
+};
+
+// Get all answers for a specific idea
+const getAnswersByIdea = async (req, res) => {
+  try {
+    const { ideaId } = req.params;
+
+    const answers = await prisma.userAnswer.findMany({
+      where: { ideaId },
+      include: {
+        question: {
+          select: {
+            id: true,
+            text: true
+          }
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            organizationName: true,
+            userType: true,
+            isVerified: true
+          }
+        },
+        ExpertAnswer: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    res.json(answers);
+  } catch (error) {
+    console.error('Error fetching answers:', error);
+    res.status(500).json({ error: 'Failed to fetch answers' });
+  }
+};
+
+// Get expert's own answers
+const getExpertAnswers = async (req, res) => {
+  try {
+    const expertId = req.user.id;
+
+    console.log("Fetching answers for expert:", expertId);    const answers = await prisma.userAnswer.findMany({
+      where: { userId: expertId },
+      include: {
+        question: {
+          select: {
+            id: true,
+            text: true,
+            idea: {
+              select: {
+                id: true,
+                title: true,
+              }
+            }
+          }
+        },
+        ExpertAnswer: {
+          select: {
+            questionValue: true,
+            // status: true // TODO: Add status field to schema
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    console.log("Found answers:", answers.length);
+    // Calculate total earnings
+    const totalEarnings = answers.reduce((sum, answer) => {
+      if (answer.ExpertAnswer && answer.ExpertAnswer.status === 'APPROVED') {
+        return sum + (answer.ExpertAnswer.questionValue || 0);
+      }
+      return sum;
+    }, 0);
+
+    res.json({
+      answers,
+      totalEarnings
+    });
+  } catch (error) {
+    console.error('Error fetching expert answers:', error);
+    res.status(500).json({ error: 'Failed to fetch answers' });
+  }
+};
+
+// Update answer status (admin only)
+const updateAnswerStatus = async (req, res) => {
+  try {
+    const { answerId } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    if (!['PENDING', 'APPROVED', 'REJECTED'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    // Update the ExpertAnswer status
+    const expertAnswer = await prisma.ExpertAnswer.updateMany({
+      where: { answerId },
+      data: { status }
+    });
+
+    if (expertAnswer.count === 0) {
+      return res.status(404).json({ error: 'Expert answer not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Answer ${status.toLowerCase()}` 
+    });
+  } catch (error) {
+    console.error('Error updating answer status:', error);
+    res.status(500).json({ error: 'Failed to update answer status' });
+  }
+};
+
+// Delete an answer (expert can only delete their own)
+const deleteAnswer = async (req, res) => {
+  try {
+    const { answerId } = req.params;
+    const userId = req.user.id;
+
+    // First check if the answer belongs to this user
+    const answer = await prisma.userAnswer.findUnique({
+      where: { id: answerId },
+      include: { ExpertAnswer: true }
+    });
+
+    if (!answer) {
+      return res.status(404).json({ error: "Answer not found" });
+    }
+
+    if (answer.userId !== userId) {
+      return res.status(403).json({ error: "You can only delete your own answers" });
+    }
+
+    // Delete ExpertAnswer first (if exists) due to foreign key constraint
+    if (answer.ExpertAnswer) {
+      await prisma.expertAnswer.delete({
+        where: { answerId: answerId }
+      });
+    }
+
+    // Delete the answer
+    await prisma.userAnswer.delete({
+      where: { id: answerId }
+    });
+
+    res.json({ success: true, message: "Answer deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting answer:", error);
+    res.status(500).json({ error: "Failed to delete answer" });
+  }
+};
+
+module.exports = {
+  deleteAnswer,
+  submitExpertAnswer,
+  getAnswersByQuestion,
+  getAnswersByIdea,
+  getExpertAnswers,
+  updateAnswerStatus
+};const submitAnswer = async (req, res) => {
+  try {
+    const { questionId, content, sources } = req.body;
+    const userId = req.user.id;
+
+    const question = await prisma.validationQuestion.findUnique({
+      where: { id: questionId }
+    });
+
+    if (question.assignedExpertId !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'You are not assigned to this question'
+      });
+    }
+
+    const answer = await prisma.userAnswer.create({
+      data: {
+        questionId,
+        userId,
+        content,
+        sources,
+        supportingDocs: req.files ? req.files.map(f => f.path) : []
+      }
+    });
+
+    await prisma.validationQuestion.update({
+      where: { id: questionId },
+      data: {
+        status: 'ANSWERED',
+        isAnswered: true
+      }
+    });
+
+    await prisma.expertQueue.update({
+      where: {
+        questionId_expertId: {
+          questionId,
+          expertId: userId
+        }
+      },
+      data: {
+        status: 'ANSWERED'
+      }
+    });
+
+    const responseTime = question.assignedAt 
+      ? (Date.now() - new Date(question.assignedAt).getTime()) / (1000 * 60)
+      : 0;
+
+    const veracityScore = await paymentService.processAnswerSubmission(answer.id);
+
+    await paymentService.updateExpertMetrics(userId, {
+      responseTime
+    });
+
+    res.json({
+      success: true,
+      message: 'Answer submitted successfully',
+      answer,
+      veracityScore: veracityScore.overallScore,
+      meetsThreshold: veracityScore.overallScore >= 80
+    });
+  } catch (error) {
+    console.error('Error submitting answer:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+// Get all answers for a specific question
+const getAnswersByQuestion = async (req, res) => {
+  try {
+    const { questionId } = req.params;
+
+    const answers = await prisma.userAnswer.findMany({
+      where: { questionId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            organizationName: true,
+            userType: true,
+            isVerified: true
+          }
+        },
+        ExpertAnswer: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    res.json(answers);
+  } catch (error) {
+    console.error('Error fetching answers:', error);
+    res.status(500).json({ error: 'Failed to fetch answers' });
+  }
+};
+
+// Get all answers for a specific idea
+const getAnswersByIdea = async (req, res) => {
+  try {
+    const { ideaId } = req.params;
+
+    const answers = await prisma.userAnswer.findMany({
+      where: { ideaId },
+      include: {
+        question: {
+          select: {
+            id: true,
+            text: true
+          }
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            organizationName: true,
+            userType: true,
+            isVerified: true
+          }
+        },
+        ExpertAnswer: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    res.json(answers);
+  } catch (error) {
+    console.error('Error fetching answers:', error);
+    res.status(500).json({ error: 'Failed to fetch answers' });
+  }
+};
+
+// Get expert's own answers
+const getExpertAnswers = async (req, res) => {
+  try {
+    const expertId = req.user.id;
+
+    console.log("Fetching answers for expert:", expertId);    const answers = await prisma.userAnswer.findMany({
+      where: { userId: expertId },
+      include: {
+        question: {
+          select: {
+            id: true,
+            text: true,
+            idea: {
+              select: {
+                id: true,
+                title: true,
+              }
+            }
+          }
+        },
+        ExpertAnswer: {
+          select: {
+            questionValue: true,
+            // status: true // TODO: Add status field to schema
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    console.log("Found answers:", answers.length);
+    // Calculate total earnings
+    const totalEarnings = answers.reduce((sum, answer) => {
+      if (answer.ExpertAnswer && answer.ExpertAnswer.status === 'APPROVED') {
+        return sum + (answer.ExpertAnswer.questionValue || 0);
+      }
+      return sum;
+    }, 0);
+
+    res.json({
+      answers,
+      totalEarnings
+    });
+  } catch (error) {
+    console.error('Error fetching expert answers:', error);
+    res.status(500).json({ error: 'Failed to fetch answers' });
+  }
+};
+
+// Update answer status (admin only)
+const updateAnswerStatus = async (req, res) => {
+  try {
+    const { answerId } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    if (!['PENDING', 'APPROVED', 'REJECTED'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    // Update the ExpertAnswer status
+    const expertAnswer = await prisma.ExpertAnswer.updateMany({
+      where: { answerId },
+      data: { status }
+    });
+
+    if (expertAnswer.count === 0) {
+      return res.status(404).json({ error: 'Expert answer not found' });
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Answer ${status.toLowerCase()}` 
+    });
+  } catch (error) {
+    console.error('Error updating answer status:', error);
+    res.status(500).json({ error: 'Failed to update answer status' });
+  }
+};
+
+// Delete an answer (expert can only delete their own)
+const deleteAnswer = async (req, res) => {
+  try {
+    const { answerId } = req.params;
+    const userId = req.user.id;
+
+    // First check if the answer belongs to this user
+    const answer = await prisma.userAnswer.findUnique({
+      where: { id: answerId },
+      include: { ExpertAnswer: true }
+    });
+
+    if (!answer) {
+      return res.status(404).json({ error: "Answer not found" });
+    }
+
+    if (answer.userId !== userId) {
+      return res.status(403).json({ error: "You can only delete your own answers" });
+    }
+
+    // Delete ExpertAnswer first (if exists) due to foreign key constraint
+    if (answer.ExpertAnswer) {
+      await prisma.expertAnswer.delete({
+        where: { answerId: answerId }
+      });
+    }
+
+    // Delete the answer
+    await prisma.userAnswer.delete({
+      where: { id: answerId }
+    });
+
+    res.json({ success: true, message: "Answer deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting answer:", error);
+    res.status(500).json({ error: "Failed to delete answer" });
+  }
+};
+
+module.exports = {
+  deleteAnswer,
+  submitExpertAnswer,
+  getAnswersByQuestion,
+  getAnswersByIdea,
+  getExpertAnswers,
+  updateAnswerStatus
+};

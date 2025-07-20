@@ -9,7 +9,7 @@ const addQuestion = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { ideaId, text, bidAmount } = req.body;
+    const { ideaId, text } = req.body;
     const userId = req.userId;
 
     // Check if user has contributed at least $5000 to this idea
@@ -37,6 +37,9 @@ const addQuestion = async (req, res) => {
         questions: {
           where: { isTop3: true },
           orderBy: { questionSlot: 'asc' }
+        },
+        contributions: {
+          where: { wasRefunded: false }
         }
       }
     });
@@ -45,11 +48,15 @@ const addQuestion = async (req, res) => {
       return res.status(404).json({ error: 'Idea not found' });
     }
 
+    // Calculate escrow amount for this question
+    const totalEscrow = idea.contributions.reduce((sum, c) => sum + c.amount, 0);
+    const totalQuestions = await prisma.validationQuestion.count({ where: { ideaId } }) + 1;
+    const escrowPerQuestion = totalEscrow / totalQuestions;
+
     // Determine if this should automatically go to top 3
     const currentTop3Count = idea.questions.length;
     let isTop3 = false;
     let questionSlot = null;
-    let actualBidAmount = bidAmount || 0;
 
     // If less than 3 questions in top slots, automatically assign
     if (currentTop3Count < 3) {
@@ -62,8 +69,6 @@ const addQuestion = async (req, res) => {
           break;
         }
       }
-      // No bidding required for automatic top 3
-      actualBidAmount = 0;
     }
 
     // Create the question
@@ -71,9 +76,9 @@ const addQuestion = async (req, res) => {
       data: {
         ideaId,
         text,
-        bidAmount: actualBidAmount,
         submittedById: userId,
         escrowSourceId: userContribution.id,
+        escrowAmount: escrowPerQuestion,
         isTop3,
         questionSlot
       },
@@ -87,13 +92,15 @@ const addQuestion = async (req, res) => {
       }
     });
 
+    // Reallocate escrow across all questions
+    await reallocateEscrow(ideaId);
+
     res.status(201).json({
       message: isTop3 
         ? `Question automatically assigned to slot ${questionSlot}` 
         : 'Question submitted successfully',
       question,
-      automaticallyAssigned: isTop3,
-      requiresBidding: currentTop3Count >= 3
+      automaticallyAssigned: isTop3
     });
   } catch (error) {
     console.error('Add question error:', error);
@@ -124,7 +131,6 @@ const getIdeaQuestions = async (req, res) => {
       orderBy: [
         { isTop3: 'desc' },
         { questionSlot: 'asc' },
-        { bidAmount: 'desc' },
         { createdAt: 'asc' }
       ]
     });
@@ -138,8 +144,7 @@ const getIdeaQuestions = async (req, res) => {
       top3Questions,
       otherQuestions,
       totalQuestions: questions.length,
-      availableSlots,
-      biddingRequired: availableSlots === 0
+      availableSlots
     });
   } catch (error) {
     console.error('Get questions error:', error);
@@ -147,137 +152,7 @@ const getIdeaQuestions = async (req, res) => {
   }
 };
 
-// Bid on a question slot (only allowed when all 3 slots are filled)
-const bidOnQuestionSlot = async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { questionId, slot, bidAmount } = req.body;
-    const userId = req.userId;
-
-    // Validate slot number
-    if (slot < 1 || slot > 3) {
-      return res.status(400).json({ error: 'Slot must be between 1 and 3' });
-    }
-
-    // Get the question and check if all slots are filled
-    const question = await prisma.validationQuestion.findUnique({
-      where: { id: questionId },
-      include: { 
-        idea: {
-          include: {
-            questions: {
-              where: { isTop3: true ,
-            contributions: {
-              select: {
-                amount: true,
-                wasRefunded: true
-              }
-            }
-          }
-            }
-          }
-        }
-      }
-    });
-
-    if (!question) {
-      return res.status(404).json({ error: 'Question not found' });
-    }
-
-    // Check if all 3 slots are filled
-    if (question.idea.questions.length < 3) {
-      return res.status(400).json({ 
-        error: `Cannot bid yet. ${3 - question.idea.questions.length} top slots are still available for automatic assignment.` 
-      });
-    }
-
-    // Check if user owns this question
-    if (question.submittedById !== userId) {
-      return res.status(403).json({ error: 'You can only bid on your own questions' });
-    }
-
-    // Check current occupant of the slot
-    const currentSlotHolder = await prisma.validationQuestion.findFirst({
-      where: {
-        ideaId: question.ideaId,
-        isTop3: true,
-        questionSlot: slot
-      }
-    });
-
-    // Bid must be higher than current
-    if (currentSlotHolder && bidAmount <= currentSlotHolder.bidAmount) {
-      return res.status(400).json({ 
-        error: `Bid must be higher than current bid of $${currentSlotHolder.bidAmount}` 
-      });
-    }
-
-    // For questions that were automatically assigned (bidAmount = 0), 
-    // any bid amount is acceptable
-    if (currentSlotHolder && currentSlotHolder.bidAmount === 0 && bidAmount <= 0) {
-      return res.status(400).json({ 
-        error: 'Bid amount must be greater than 0' 
-      });
-    }
-
-    // Update the question with new bid
-    const updatedQuestion = await prisma.validationQuestion.update({
-      where: { id: questionId },
-      data: {
-        bidAmount,
-        isTop3: true,
-        questionSlot: slot
-      }
-    });
-
-    // If there was a previous holder, remove them from top 3
-    if (currentSlotHolder && currentSlotHolder.id !== questionId) {
-      await prisma.validationQuestion.update({
-        where: { id: currentSlotHolder.id },
-        data: {
-          isTop3: false,
-          questionSlot: null
-        }
-      });
-    }
-
-    res.json({
-      message: 'Bid placed successfully',
-      question: updatedQuestion,
-      displacedQuestion: currentSlotHolder ? currentSlotHolder.id : null
-    });
-  } catch (error) {
-    console.error('Bid error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-// Get minimum escrow amount for additional questions
-const getMinimumEscrow = async (req, res) => {
-  try {
-    // Get the 100th ranked idea's escrow amount
-    const ideas = await prisma.institutionalIdea.findMany({
-      where: { status: 'TOP_100' },
-      orderBy: { totalEscrow: 'desc' },
-      take: 100,
-      select: { totalEscrow: true }
-    });
-
-    const minimumEscrow = ideas.length >= 100 ? ideas[99].totalEscrow : 5000;
-
-    res.json({ minimumEscrow });
-  } catch (error) {
-    console.error('Get minimum escrow error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-
-// Get single question by ID
+// Get question by ID
 const getQuestionById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -287,47 +162,63 @@ const getQuestionById = async (req, res) => {
       include: {
         idea: {
           include: {
-            createdBy: {
-              select: {
-                id: true,
-                organizationName: true,
-                email: true
-              }
-            },
+            createdBy: true,
             contributions: {
-              select: {
-                amount: true,
-                wasRefunded: true
-              }
+              where: { wasRefunded: false }
             }
           }
         },
-        submittedBy: {
-          select: {
-            id: true,
-            organizationName: true
+        submittedBy: true,
+        answers: {
+          include: {
+            user: true
           }
-        },
-        escrowSource: true
+        }
       }
     });
 
     if (!question) {
-      return res.status(404).json({ error: "Question not found" });
+      return res.status(404).json({ error: 'Question not found' });
     }
 
     res.json(question);
   } catch (error) {
-    console.error("Get question error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error('Get question error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
+// Helper function to reallocate escrow when questions are added
+const reallocateEscrow = async (ideaId) => {
+  try {
+    const idea = await prisma.institutionalIdea.findUnique({
+      where: { id: ideaId },
+      include: {
+        contributions: {
+          where: { wasRefunded: false }
+        },
+        questions: true
+      }
+    });
+
+    if (!idea || idea.questions.length === 0) return;
+
+    const totalEscrow = idea.contributions.reduce((sum, c) => sum + c.amount, 0);
+    const questionCount = idea.questions.length;
+    const escrowPerQuestion = totalEscrow / questionCount;
+
+    // Update all questions with new escrow amounts
+    await prisma.validationQuestion.updateMany({
+      where: { ideaId },
+      data: { escrowAmount: escrowPerQuestion }
+    });
+  } catch (error) {
+    console.error('Error reallocating escrow:', error);
+  }
+};
 
 module.exports = {
   addQuestion,
   getIdeaQuestions,
-  bidOnQuestionSlot,
-  getMinimumEscrow,
   getQuestionById
 };

@@ -5,8 +5,8 @@ import { ideas, escrow } from '../services/api';
 import { 
   DollarSign, LogOut, TrendingUp, Plus, Trophy, Clock,
   Users, BarChart3, ArrowUpRight, AlertCircle, Loader2,
-  Filter, Search, ChevronRight, Eye, Wallet, RefreshCw, MessageSquare
-} from 'lucide-react';
+  Filter, Search, ChevronRight, Eye, Wallet, RefreshCw, MessageSquare, ShoppingCart
+} from 'lucide-react' ;
 
 const InstitutionalDashboard = () => {
   const { user, logout } = useAuth();
@@ -120,6 +120,14 @@ const InstitutionalDashboard = () => {
                 <RefreshCw size={18} />
               )}
               Update Rankings
+            </button>
+            
+            <button
+              onClick={() => navigate("/resale/marketplace")}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+            >
+              <ShoppingCart size={18} />
+              Marketplace
             </button>
             
             <div className="flex items-center gap-3 bg-gray-700 rounded-lg px-4 py-2">
@@ -255,6 +263,14 @@ const InstitutionalDashboard = () => {
                                 <Plus size={16} />
                                 Contribute
                               </button>
+            
+            <button
+              onClick={() => navigate("/resale/marketplace")}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+            >
+              <ShoppingCart size={18} />
+              Marketplace
+            </button>
                               <button 
                                 onClick={() => navigate(`/idea/${idea.id}`)}
                                 className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center gap-2"

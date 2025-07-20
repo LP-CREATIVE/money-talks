@@ -87,7 +87,8 @@ const login = async (req, res) => {
         email: user.email,
         userType: user.userType,
         organizationName: user.organizationName,
-        expertProfile: user.expertProfile,        walletBalance: user.walletBalance,
+        expertProfile: user.expertProfile,
+        walletBalance: user.walletBalance,
         reputationScore: user.reputationScore
       }
     });
@@ -101,7 +102,7 @@ const login = async (req, res) => {
 const getMe = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { id: req.userId },
       include: {
         expertProfile: true
       }
@@ -116,7 +117,8 @@ const getMe = async (req, res) => {
         email: user.email,
         userType: user.userType,
         organizationName: user.organizationName,
-        expertProfile: user.expertProfile,        walletBalance: user.walletBalance,
+        expertProfile: user.expertProfile,
+        walletBalance: user.walletBalance,
         reputationScore: user.reputationScore,
         isVerified: user.isVerified
       }

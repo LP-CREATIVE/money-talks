@@ -1,179 +1,866 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { answers } from '../services/api';
 import { 
-  Send, AlertCircle, Loader2, FileText, 
-  Link, CheckCircle
+ Send, AlertCircle, Loader2, FileText, 
+ Link, CheckCircle, ChevronRight, ChevronLeft,
+ Plus, Trash2, Save, Lightbulb, Upload, X
 } from 'lucide-react';
 
 const ExpertAnswerForm = ({ question, onSuccess }) => {
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    content: '',
-    sources: ['']
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
 
-  const handleContentChange = (e) => {
-    setFormData({ ...formData, content: e.target.value });
-  };
-
-  const handleSourceChange = (index, value) => {
-    const newSources = [...formData.sources];
-    newSources[index] = value;
-    setFormData({ ...formData, sources: newSources });
-  };
-
-  const addSource = () => {
-    setFormData({ ...formData, sources: [...formData.sources, ''] });
-  };
-
-  const removeSource = (index) => {
-    const newSources = formData.sources.filter((_, i) => i !== index);
-    setFormData({ ...formData, sources: newSources });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const submitData = {
-        questionId: question.id,
-        content: formData.content,
-        sources: formData.sources.filter(s => s.trim() !== '')
-      };
-
-      await answers.submitExpert(submitData);
-      setSuccess(true);
-      
-      setTimeout(() => {
-        if (onSuccess) {
-          onSuccess();
-        } else {
-          navigate('/expert/dashboard');
-        }
-      }, 2000);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to submit answer');
-      setLoading(false);
-    }
-  };
-
-  if (success) {
+  if (!question || !question.id) {
     return (
-      <div className="bg-gray-800 rounded-xl p-8 border border-green-700 text-center">
-        <CheckCircle className="mx-auto text-green-500 mb-4" size={64} />
-        <h3 className="text-xl font-bold text-white mb-2">Answer Submitted Successfully!</h3>
-        <p className="text-gray-400">
-          Your answer has been submitted for review. You'll be notified when payment is released.
-        </p>
+      <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <div className="flex items-center justify-center">
+          <Loader2 className="animate-spin text-gray-400" size={24} />
+          <span className="ml-2 text-gray-400">Loading question...</span>
+        </div>
       </div>
     );
   }
+ const navigate = useNavigate();
+ const [currentStep, setCurrentStep] = useState(1);
+ const [loading, setLoading] = useState(false);
+ const [error, setError] = useState('');
+ const [success, setSuccess] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+ const [validationErrors, setValidationErrors] = useState({});
+ const [autoSaveStatus, setAutoSaveStatus] = useState('');
+ 
+ const [formData, setFormData] = useState({
+   content: '',
+  methodology: '',
+  limitations: '',
+  uploadedFiles: [],
+  sources: [
+     { type: '', title: '', author: '', date: '', quote: '', url: '', pageRef: '' },
+     { type: '', title: '', author: '', date: '', quote: '', url: '', pageRef: '' },
+     { type: '', title: '', author: '', date: '', quote: '', url: '', pageRef: '' }
+   ],
+   keyFindings: ['', '', ''],
+   quantitativeData: [
+     { metric: '', value: '', context: '' },
+     { metric: '', value: '', context: '' }
+   ],
+   assumptions: '',
+   confidenceLevel: 75,
+   confidenceExplanation: '',
+   relevantExperience: '',
+   potentialConflicts: '',
+   hasConflicts: false,
+   followUpAvailable: true,
+   understoodQuestion: false
+ });
 
+ const sourceTypes = [
+   'Company Filing (10-K, 10-Q, 8-K)',
+   'Industry Report',
+   'Academic Paper',
+   'Expert Interview',
+   'Internal Analysis',
+   'Market Data',
+   'News Article'
+ ];
+
+ // Auto-save functionality
+ useEffect(() => {
+   const autoSave = setTimeout(() => {
+     if (formData.content.length > 0) {
+       setAutoSaveStatus('saving');
+       localStorage.setItem(`draft-answer-${question.id}`, JSON.stringify(formData));
+       setTimeout(() => setAutoSaveStatus('saved'), 1000);
+     }
+   }, 30000);
+   return () => clearTimeout(autoSave);
+ }, [formData, question.id]);
+
+ // Load draft on mount
+ useEffect(() => {
+   const draft = localStorage.getItem(`draft-answer-${question.id}`);
+   if (draft) {
+     const parsedDraft = JSON.parse(draft);
+    setFormData({
+      ...parsedDraft,
+      methodology: parsedDraft.methodology || "",
+      limitations: parsedDraft.limitations || ""
+    });
+   }
+ }, [question.id]);
+
+ // Step validation
+ const validateStep = (step) => {
+   const errors = {};
+   
+   switch(step) {
+     case 1: // Understanding
+       if (!formData.understoodQuestion) {
+         errors.understanding = 'Please confirm you understand the question';
+       }
+       break;
+       
+     case 2: // Structured Response validation
+       if (!formData.methodology || formData.methodology.length < 100) {
+         errors.methodology = "Methodology must be at least 100 characters";
+       }
+       break;
+              
+     case 3: // Sources validation
+       const validSources = formData.sources.filter(s => s.title);
+       if (validSources.length < 3) {
+         errors.sourcesCount = "Minimum 3 sources required";
+       }
+       formData.sources.forEach((source, idx) => {
+         if (source.title || source.author || source.quote) {
+           if (!source.type) errors[`source-${idx}-type`] = "Source type required";
+           if (!source.title) errors[`source-${idx}-title`] = "Title required";
+           if (!source.author) errors[`source-${idx}-author`] = "Author/Organization required";
+           if (!source.date) errors[`source-${idx}-date`] = "Date required";
+           if (source.quote && source.quote.length < 50) {
+             errors[`source-${idx}-quote`] = "Quote must be at least 50 characters";
+           }
+         }
+       });       break;
+   }
+   
+   setValidationErrors(errors);
+   return Object.keys(errors).length === 0;
+ };
+
+ const handleNext = () => {
+   if (validateStep(currentStep)) {
+     setCurrentStep(currentStep + 1);
+   }
+ };
+
+ const handlePrevious = () => {
+   setCurrentStep(currentStep - 1);
+ };
+
+ // Source management
+ const updateSource = (index, field, value) => {
+   const newSources = [...formData.sources];
+   newSources[index][field] = value;
+   setFormData({ ...formData, sources: newSources });
+ };
+
+ const addSource = () => {
+   setFormData({
+     ...formData,
+   uploadedFiles: [],     sources: [...formData.sources, { type: '', title: '', author: '', date: '', quote: '', url: '', pageRef: '' }]
+   });
+ };
+
+ const removeSource = (index) => {
+   if (formData.sources.length > 3) {
+     const newSources = formData.sources.filter((_, i) => i !== index);
+     setFormData({ ...formData, sources: newSources });
+   }
+ };
+
+  // File upload handler
+  const handleFileUpload = (index, files) => {
+    if (files && files.length > 0) {
+      const file = files[0];
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const newSources = [...formData.sources];
+        newSources[index].fileName = file.name;
+        newSources[index].fileData = e.target.result;
+        setFormData({ ...formData, sources: newSources });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+ // Key findings management
+ const updateKeyFinding = (index, value) => {
+   const newFindings = [...formData.keyFindings];
+   newFindings[index] = value;
+   setFormData({ ...formData, keyFindings: newFindings });
+ };
+
+ const addKeyFinding = () => {
+   if (formData.keyFindings.length < 5) {
+     setFormData({ ...formData, keyFindings: [...formData.keyFindings, ''] });
+   }
+ };
+
+ // Quantitative data management
+ const updateQuantData = (index, field, value) => {
+   const newData = [...formData.quantitativeData];
+   newData[index][field] = value;
+   setFormData({ ...formData, quantitativeData: newData });
+ };
+
+ const addQuantData = () => {
+   setFormData({
+     ...formData,
+     quantitativeData: [...formData.quantitativeData, { metric: '', value: '', context: '' }]
+   });
+ };
+
+ const saveDraft = () => {
+   localStorage.setItem(`draft-answer-${question.id}`, JSON.stringify(formData));
+   setAutoSaveStatus('saved');
+ };
+
+  const handleDocumentUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const response = await answers.uploadFile(file);
+      setUploadedFiles([...uploadedFiles, response.data]);
+      e.target.value = ""; // Reset input
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to upload file");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeFile = (index) => {
+    setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
+  };
+
+ const handleSubmit = async (e) => {
+   e.preventDefault();
+   
+   // Validate all steps
+   let allValid = true;
+   for (let i = 1; i <= 3; i++) {
+     if (!validateStep(i)) {
+       allValid = false;
+       setCurrentStep(i);
+       break;
+     }
+   }
+   
+   if (!allValid) return;
+   
+   setError('');
+   setLoading(true);
+
+   try {
+    const submitData = {
+      questionId: question.id,
+      attachments: uploadedFiles.map(f => f.path),
+      content: formData.content,
+      sources: formData.sources.filter(s => s.title),
+      methodology: formData.methodology
+    };
+     await answers.submitExpert(submitData);
+     setSuccess(true);
+     localStorage.removeItem(`draft-answer-${question.id}`);
+     
+     setTimeout(() => {
+       if (onSuccess) {
+         onSuccess();
+       } else {
+         navigate('/expert/dashboard');
+       }
+     }, 2000);
+   } catch (err) {
+     setError(err.response?.data?.error || 'Failed to submit answer');
+     setLoading(false);
+   }
+ };
+
+ if (success) {
+   return (
+     <div className="bg-gray-800 rounded-xl p-8 border border-green-700 text-center">
+       <CheckCircle className="mx-auto text-green-500 mb-4" size={64} />
+       <h3 className="text-xl font-bold text-white mb-2">Answer Submitted Successfully!</h3>
+       <p className="text-gray-400">
+         Your answer has been submitted for review. You'll be notified when payment is released.
+       </p>
+     </div>
+   );
+ }
+
+ // Step 1: Question Understanding
+const renderStep1 = () => {
+  console.log("Question object:", question, "escrowAmount:", question?.escrowAmount, "bidAmount:", question?.bidAmount, "50% of escrowAmount:", (question?.escrowAmount || 0) / 2, "50% of bidAmount:", (question?.bidAmount || 0) / 2);
   return (
-    <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-      <h3 className="text-lg font-semibold text-white mb-4">Submit Your Expert Answer</h3>
-      
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {error && (
-          <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 flex items-center gap-3">
-            <AlertCircle className="text-red-400" size={20} />
-            <p className="text-red-400">{error}</p>
-          </div>
-        )}
+    <div className="space-y-6">
+      <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-6">
 
-        {/* Answer Content */}
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Your Answer *
-          </label>
-          <textarea
-            value={formData.content}
-            onChange={handleContentChange}
-            placeholder="Provide a detailed, professional answer based on your expertise..."
-            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-green-500 transition-colors resize-none"
-            rows={8}
-            required
-            minLength={100}
+
+
+
+       <h3 className="text-lg font-semibold mb-3 flex items-center text-white">
+         <AlertCircle className="mr-2 text-blue-400" size={20} />
+         Question Analysis</h3>
+       <p className="text-gray-300 mb-4 text-lg">{question?.text || "Loading..."}</p>
+       
+       <div className="grid grid-cols-2 gap-4 mt-4">
+         <div className="bg-gray-800 p-3 rounded border border-gray-700">
+           <span className="text-sm text-gray-400">Reward:</span>
+           <p className="font-medium text-green-400">${((question?.escrowAmount || question?.bidAmount || 0) / 2).toLocaleString()}</p>
+         </div>
+         <div className="bg-gray-800 p-3 rounded border border-gray-700">
+           <span className="text-sm text-gray-400">Min Score:</span>
+           <p className="font-medium text-white">{question?.minAnswerScore || 80}%</p>
+         </div>
+       </div>
+     </div>
+
+     <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-6">
+       <h4 className="font-semibold mb-3 flex items-center text-white">
+         <Lightbulb className="mr-2 text-yellow-400" size={20} />
+         Key Areas to Address
+       </h4>
+       <ul className="space-y-2 text-gray-300">
+         <li className="flex items-start">
+           <CheckCircle className="mr-2 mt-1 text-green-500 flex-shrink-0" size={16} />
+           <span>Provide specific, data-driven insights</span>
+         </li>
+         <li className="flex items-start">
+           <CheckCircle className="mr-2 mt-1 text-green-500 flex-shrink-0" size={16} />
+           <span>Support claims with credible sources</span>
+         </li>
+         <li className="flex items-start">
+           <CheckCircle className="mr-2 mt-1 text-green-500 flex-shrink-0" size={16} />
+           <span>Include quantitative projections where applicable</span>
+         </li>
+         <li className="flex items-start">
+           <CheckCircle className="mr-2 mt-1 text-green-500 flex-shrink-0" size={16} />
+           <span>Be transparent about assumptions and limitations</span>
+         </li>
+       </ul>
+     </div>
+
+     <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+       <label className="flex items-center space-x-3 cursor-pointer">
+         <input
+           type="checkbox"
+           className="w-5 h-5 text-green-600 rounded focus:ring-green-500 bg-gray-700 border-gray-600"
+           checked={formData.understoodQuestion}
+           onChange={(e) => setFormData({ ...formData, understoodQuestion: e.target.checked })}
+         />
+         <span className="text-lg text-white">I have the expertise to provide a comprehensive answer to this question</span>
+       </label>
+       {validationErrors.understanding && (
+         <p className="text-red-400 text-sm mt-2">{validationErrors.understanding}</p>
+       )}
+     </div>
+   </div>
+ );
+};
+ // Step 2: Evidence Gathering
+ const renderStep2 = () => (
+   <div className="space-y-6">
+     <div className="flex justify-between items-center mb-4">
+       <h3 className="text-lg font-semibold text-white">Supporting Evidence (Minimum 3 Sources)</h3>
+       <button
+         type="button"
+         onClick={addSource}
+         className="flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+       >
+         <Plus size={16} className="mr-1" />
+         Add Source
+       </button>
+     </div>
+
+     {validationErrors.sourcesCount && (
+       <div className="bg-red-900/50 border border-red-700 rounded-lg p-3">
+         <p className="text-red-400 text-sm">{validationErrors.sourcesCount}</p>
+       </div>
+     )}
+
+     {formData.sources.map((source, index) => (
+       <div key={index} className="bg-gray-800 border border-gray-700 rounded-lg p-6 space-y-4">
+         <div className="flex justify-between items-center">
+           <h4 className="font-medium text-lg text-white">Source {index + 1}</h4>
+           {index >= 3 && (
+             <button
+               type="button"
+               onClick={() => removeSource(index)}
+               className="text-red-400 hover:text-red-300"
+             >
+               <Trash2 size={20} />
+             </button>
+           )}
+         </div>
+
+         <div className="grid grid-cols-2 gap-4">
+           <div>
+             <label className="block text-sm font-medium mb-1 text-gray-300">
+               Source Type *
+               {validationErrors[`source-${index}-type`] && (
+                 <span className="text-red-400 text-xs ml-2">{validationErrors[`source-${index}-type`]}</span>
+               )}
+             </label>
+             <select
+               value={source.type}
+               onChange={(e) => updateSource(index, 'type', e.target.value)}
+               className={`w-full p-2 bg-gray-700 border rounded-lg text-white ${
+                 validationErrors[`source-${index}-type`] ? 'border-red-500' : 'border-gray-600'
+               }`}
+             >
+               <option value="">Select type...</option>
+               {sourceTypes.map(type => (
+                 <option key={type} value={type}>{type}</option>
+               ))}
+             </select>
+           </div>
+
+           <div>
+             <label className="block text-sm font-medium mb-1 text-gray-300">
+               Date *
+               {validationErrors[`source-${index}-date`] && (
+                 <span className="text-red-400 text-xs ml-2">{validationErrors[`source-${index}-date`]}</span>
+               )}
+             </label>
+             <input
+               type="date"
+               value={source.date}
+               onChange={(e) => updateSource(index, 'date', e.target.value)}
+               className={`w-full p-2 bg-gray-700 border rounded-lg text-white ${
+                 validationErrors[`source-${index}-date`] ? 'border-red-500' : 'border-gray-600'
+               }`}
+             />
+           </div>
+         </div>
+
+         <div>
+           <label className="block text-sm font-medium mb-1 text-gray-300">
+             Title/Name *
+             {validationErrors[`source-${index}-title`] && (
+               <span className="text-red-400 text-xs ml-2">{validationErrors[`source-${index}-title`]}</span>
+             )}
+           </label>
+           <input
+             type="text"
+             value={source.title}
+             onChange={(e) => updateSource(index, 'title', e.target.value)}
+             placeholder="e.g., Q3 2024 Earnings Report"
+             className={`w-full p-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 ${
+               validationErrors[`source-${index}-title`] ? 'border-red-500' : 'border-gray-600'
+             }`}
+           />
+         </div>
+
+         <div>
+           <label className="block text-sm font-medium mb-1 text-gray-300">
+             Author/Organization *
+             {validationErrors[`source-${index}-author`] && (
+               <span className="text-red-400 text-xs ml-2">{validationErrors[`source-${index}-author`]}</span>
+             )}
+           </label>
+           <input
+             type="text"
+             value={source.author}
+             onChange={(e) => updateSource(index, 'author', e.target.value)}
+             placeholder="e.g., Goldman Sachs Research"
+             className={`w-full p-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 ${
+               validationErrors[`source-${index}-author`] ? 'border-red-500' : 'border-gray-600'
+             }`}
+           />
+         </div>
+
+         <div>
+           <label className="block text-sm font-medium mb-1 text-gray-300">
+             Relevant Quote/Data (min 50 chars) *
+             {validationErrors[`source-${index}-quote`] && (
+               <span className="text-red-400 text-xs ml-2">{validationErrors[`source-${index}-quote`]}</span>
+             )}
+           </label>
+           <textarea
+             value={source.quote}
+             onChange={(e) => updateSource(index, 'quote', e.target.value)}
+             placeholder="Copy the specific data, quote, or information that supports your answer..."
+             rows={3}
+             className={`w-full p-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 ${
+               validationErrors[`source-${index}-quote`] ? 'border-red-500' : 'border-gray-600'
+             }`}
+           />
+           <p className="text-xs text-gray-500 mt-1">{source.quote.length}/50 characters</p>
+         </div>
+
+         <div className="grid grid-cols-2 gap-4">
+           <div>
+             <label className="block text-sm font-medium mb-1 text-gray-300">Page/Section Reference</label>
+             <input
+               type="text"
+               value={source.pageRef}
+               onChange={(e) => updateSource(index, 'pageRef', e.target.value)}
+               placeholder="e.g., Page 47, Section 3.2"
+               className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400"
+             />
+           </div>
+           <div>
+             <label className="block text-sm font-medium mb-1 text-gray-300">URL (if public)</label>
+             <input
+               type="url"
+               value={source.url}
+               onChange={(e) => updateSource(index, 'url', e.target.value)}
+               placeholder="https://..."
+               className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400"
+             />
+           </div>
+         </div>
+
+         {/* Source credibility indicator */}
+         <div className="flex items-center justify-between bg-gray-900 p-3 rounded-lg">
+           <span className="text-sm font-medium text-gray-300">Credibility Score:</span>
+           <div className="flex items-center">
+             {source.type && source.type.includes('Company Filing') && (
+               <div className="flex items-center text-green-400">
+                 <CheckCircle size={16} className="mr-1" />
+                 <span className="text-sm">Primary Source (+15 pts)</span>
+               </div>
+             )}
+             {source.date && new Date(source.date) > new Date(Date.now() - 180 * 24 * 60 * 60 * 1000) && (
+               <div className="flex items-center text-green-400 ml-3">
+                 <CheckCircle size={16} className="mr-1" />
+                 <span className="text-sm">Recent (+10 pts)</span>
+               </div>
+             )}
+           </div>
+         </div>
+       </div>
+     ))}
+
+    {/* Document Uploads */}
+    <div className="mt-8 bg-gray-800 border border-gray-700 rounded-lg p-6">
+      <h4 className="font-medium text-lg text-white mb-4">Supporting Documents</h4>
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,.txt"
+            onChange={handleDocumentUpload}
+            disabled={uploading}
+            className="hidden"
+            id="file-upload"
           />
-          <p className="text-xs text-gray-500 mt-1">
-            Minimum 100 characters • {formData.content.length} characters
-          </p>
-        </div>
-
-        {/* Sources */}
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Sources & References
+          <label
+            htmlFor="file-upload"
+            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors cursor-pointer flex items-center gap-2 disabled:opacity-50"
+          >
+            <FileText size={20} />
+            {uploading ? "Uploading..." : "Upload Document"}
           </label>
-          <div className="space-y-2">
-            {formData.sources.map((source, index) => (
-              <div key={index} className="flex gap-2">
-                <input
-                  type="url"
-                  value={source}
-                  onChange={(e) => handleSourceChange(index, e.target.value)}
-                  placeholder="https://example.com/source"
-                  className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-green-500 transition-colors"
-                />
-                {formData.sources.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeSource(index)}
-                    className="px-3 py-2 bg-red-900/50 hover:bg-red-900/70 text-red-400 rounded-lg transition-colors"
-                  >
-                    Remove
-                  </button>
-                )}
+          <span className="text-xs text-gray-500">PDF, DOC, DOCX, TXT (Max 10MB)</span>
+        </div>
+        
+        {uploadedFiles.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-sm text-gray-400">Uploaded Documents:</p>
+            {uploadedFiles.map((file, index) => (
+              <div key={index} className="flex items-center justify-between bg-gray-700/50 rounded-lg px-3 py-2">
+                <span className="text-sm text-gray-300">{file.originalName}</span>
+                <button
+                  type="button"
+                  onClick={() => removeFile(index)}
+                  className="text-red-400 hover:text-red-300 text-sm"
+                >
+                  Remove
+                </button>
               </div>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={addSource}
-            className="mt-2 text-sm text-green-400 hover:text-green-300 transition-colors"
-          >
-            + Add another source
-          </button>
-        </div>
-
-        {/* Guidelines */}
-        <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4">
-          <h4 className="text-sm font-semibold text-blue-400 mb-2">Answer Guidelines</h4>
-          <ul className="text-xs text-gray-300 space-y-1">
-            <li>• Be specific and provide concrete examples from your experience</li>
-            <li>• Cite credible sources when making claims</li>
-            <li>• Avoid speculation - clearly distinguish facts from opinions</li>
-            <li>• Do not share confidential or proprietary information</li>
-          </ul>
-        </div>
-
-        {/* Submit Button */}
-        <button
-          type="submit"
-          disabled={loading || formData.content.length < 100}
-          className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold py-3 rounded-lg transition-all flex items-center justify-center gap-2"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="animate-spin" size={20} />
-              Submitting...
-            </>
-          ) : (
-            <>
-              <Send size={20} />
-              Submit Answer
-            </>
-          )}
-        </button>
-      </form>
+        )}
+      </div>
     </div>
-  );
+   </div>
+ );
+
+ // Step 3: Structured Response
+ const renderStep3 = () => (
+   <div className="space-y-6">
+     {/* Methodology */}
+     <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+       <label className="block text-lg font-semibold mb-3 text-white">
+         Methodology & Approach *
+         {validationErrors.methodology && (
+           <span className="text-red-400 text-sm ml-2">{validationErrors.methodology}</span>
+         )}
+       </label>
+       <textarea
+         value={formData.methodology}
+         onChange={(e) => setFormData({ ...formData, methodology: e.target.value })}
+         placeholder="Describe your approach to analyzing this question..."
+         rows={6}
+         className={`w-full p-4 bg-gray-700 border rounded-lg text-white placeholder-gray-400 ${
+           validationErrors.methodology ? "border-red-500" : "border-gray-600"
+         }`}
+       />
+       <p className="text-sm text-gray-500 mt-2">
+         {formData.methodology?.length || 0}/100 characters minimum
+       </p>
+     </div>
+
+     {/* Key Findings */}
+     <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+       <label className="block text-lg font-semibold mb-3 text-white">
+         Key Findings (3-5 required) *
+         {validationErrors.findings && (
+           <span className="text-red-400 text-sm ml-2">{validationErrors.findings}</span>
+         )}
+       </label>
+       {formData.keyFindings.map((finding, index) => (
+         <div key={index} className="mb-3">
+           <div className="flex items-start">
+             <span className="text-gray-400 mr-2 mt-2">•</span>
+             <input
+               type="text"
+               value={finding}
+               onChange={(e) => updateKeyFinding(index, e.target.value)}
+               placeholder={`Key finding ${index + 1}...`}
+               className="flex-1 p-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400"
+             />
+           </div>
+         </div>
+       ))}
+       {formData.keyFindings.length < 5 && (
+         <button
+           type="button"
+           onClick={addKeyFinding}
+           className="text-green-400 hover:text-green-300 text-sm flex items-center"
+         >
+           <Plus size={16} className="mr-1" />
+           Add another finding
+         </button>
+       )}
+     </div>
+
+     {/* Quantitative Data */}
+     <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+       <label className="block text-lg font-semibold mb-3 text-white">
+         Quantitative Data (minimum 2) *
+         {validationErrors.data && (
+           <span className="text-red-400 text-sm ml-2">{validationErrors.data}</span>
+         )}
+       </label>
+       {formData.quantitativeData.map((data, index) => (
+         <div key={index} className="grid grid-cols-3 gap-3 mb-3">
+           <input
+             type="text"
+             value={data.metric}
+             onChange={(e) => updateQuantData(index, 'metric', e.target.value)}
+             placeholder="Metric (e.g., Revenue)"
+             className="p-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400"
+           />
+           <input
+             type="text"
+             value={data.value}
+             onChange={(e) => updateQuantData(index, 'value', e.target.value)}
+             placeholder="Value (e.g., $2.3B)"
+             className="p-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400"
+           />
+           <input
+             type="text"
+             value={data.context}
+             onChange={(e) => updateQuantData(index, 'context', e.target.value)}
+             placeholder="Context (e.g., -15% YoY)"
+             className="p-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400"
+           />
+         </div>
+       ))}
+       <button
+         type="button"
+         onClick={addQuantData}
+         className="text-green-400 hover:text-green-300 text-sm flex items-center"
+       >
+         <Plus size={16} className="mr-1" />
+         Add more data
+       </button>
+     </div>
+
+     {/* Assumptions & Limitations */}
+     <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+       <label className="block text-lg font-semibold mb-3 text-white">
+         Assumptions & Limitations *
+         {validationErrors.assumptions && (
+           <span className="text-red-400 text-sm ml-2">{validationErrors.assumptions}</span>
+         )}
+       </label>
+       <textarea
+         value={formData.assumptions}
+         onChange={(e) => setFormData({ ...formData, assumptions: e.target.value })}
+         placeholder="Be transparent about any assumptions made and limitations of your analysis..."
+         rows={4}
+         className={`w-full p-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 ${
+           validationErrors.assumptions ? 'border-red-500' : 'border-gray-600'
+         }`}
+       />
+     </div>
+
+     {/* Confidence Level */}
+     <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+       <label className="block text-lg font-semibold mb-3 text-white">
+         Confidence Level *
+         {validationErrors.confidence && (
+           <span className="text-red-400 text-sm ml-2">{validationErrors.confidence}</span>
+         )}
+       </label>
+       <div className="space-y-4">
+         <div>
+           <div className="flex justify-between mb-2">
+             <span className="text-gray-300">How confident are you in this answer?</span>
+             <span className="font-medium text-white">{formData.confidenceLevel}%</span>
+           </div>
+           <input
+             type="range"
+             min="0"
+             max="100"
+             value={formData.confidenceLevel}
+             onChange={(e) => setFormData({ ...formData, confidenceLevel: parseInt(e.target.value) })}
+             className="w-full"
+           />
+         </div>
+         {formData.confidenceLevel < 70 && (
+           <div>
+             <label className="block text-sm font-medium mb-1 text-gray-300">
+               Please explain your confidence level *
+             </label>
+             <textarea
+               value={formData.confidenceExplanation}
+               onChange={(e) => setFormData({ ...formData, confidenceExplanation: e.target.value })}
+               placeholder="What factors are affecting your confidence in this answer?"
+               rows={3}
+               className={`w-full p-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 ${
+                 validationErrors.confidence ? 'border-red-500' : 'border-gray-600'
+               }`}
+             />
+           </div>
+         )}
+       </div>
+     </div>
+   </div>
+ );
+
+ const steps = [
+   { number: 1, title: 'Question Analysis' },
+   { number: 2, title: 'Structured Response' },
+   { number: 3, title: 'Evidence & Sources' }
+ ];
+ return (
+   <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+     {/* Progress Steps */}
+     <div className="flex items-center justify-between mb-8">
+       {steps.map((step, index) => (
+         <div key={step.number} className="flex items-center">
+           <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 
+             ${currentStep >= step.number 
+               ? 'bg-green-600 border-green-600 text-white' 
+               : 'bg-gray-700 border-gray-600 text-gray-400'}`}
+           >
+             {currentStep > step.number ? (
+               <CheckCircle size={20} />
+             ) : (
+               <span className="font-semibold">{step.number}</span>
+             )}
+           </div>
+           <div className="ml-2">
+             <p className={`text-sm font-medium ${currentStep >= step.number ? 'text-white' : 'text-gray-500'}`}>
+               {step.title}
+             </p>
+           </div>
+           {index < steps.length - 1 && (
+             <div className={`w-full h-1 mx-4 ${currentStep > step.number ? 'bg-green-600' : 'bg-gray-700'}`} />
+           )}
+         </div>
+       ))}
+     </div>
+
+     {/* Auto-save indicator */}
+     {autoSaveStatus && (
+       <div className="mb-4 text-sm text-gray-500 text-right">
+         {autoSaveStatus === 'saving' ? (
+           <>
+             <Loader2 className="inline animate-spin mr-1" size={14} />
+             Saving...
+           </>
+         ) : (
+           <>
+             <CheckCircle className="inline mr-1 text-green-500" size={14} />
+             Saved
+           </>
+         )}
+       </div>
+     )}
+
+     {error && (
+       <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 flex items-center gap-3 mb-6">
+         <AlertCircle className="text-red-400" size={20} />
+         <p className="text-red-400">{error}</p>
+       </div>
+     )}
+
+     <form onSubmit={handleSubmit}>
+       {/* Step Content */}
+       {currentStep === 1 && renderStep1()}
+       {currentStep === 2 && renderStep3()}
+       {currentStep === 3 && renderStep2()}
+
+       {/* Navigation */}
+       <div className="flex justify-between mt-8">
+         <button
+           type="button"
+           onClick={handlePrevious}
+           disabled={currentStep === 1}
+           className={`flex items-center px-6 py-3 rounded-lg font-medium
+             ${currentStep === 1 
+               ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
+               : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+         >
+           <ChevronLeft className="mr-2" size={20} />
+           Previous
+         </button>
+
+         <div className="flex gap-3">
+           <button
+             type="button"
+             onClick={saveDraft}
+             className="flex items-center px-6 py-3 bg-gray-700 text-white rounded-lg font-medium hover:bg-gray-600"
+           >
+             <Save className="mr-2" size={20} />
+             Save Draft
+           </button>
+
+           {currentStep < 3 ? (
+             <button
+               type="button"
+               onClick={handleNext}
+               disabled={currentStep === 1 && !formData.understoodQuestion}
+               className={`flex items-center px-6 py-3 rounded-lg font-medium
+                 ${currentStep === 1 && !formData.understoodQuestion
+                   ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                   : 'bg-green-600 text-white hover:bg-green-700'}`}
+             >
+               Next
+               <ChevronRight className="ml-2" size={20} />
+             </button>
+           ) : (
+             <button
+               type="submit"
+               disabled={loading}
+               className="flex items-center px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500"
+             >
+               {loading ? (
+                 <>
+                   <Loader2 className="mr-2 animate-spin" size={20} />
+                   Submitting...
+                 </>
+               ) : (
+                 <>
+                   <Send className="mr-2" size={20} />
+                   Submit Answer
+                 </>
+               )}
+             </button>
+           )}
+         </div>
+       </div>
+     </form>
+   </div>
+ );
 };
 
 export default ExpertAnswerForm;

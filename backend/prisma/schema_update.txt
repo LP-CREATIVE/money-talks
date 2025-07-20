@@ -1,0 +1,22 @@
+// Find this model in schema.prisma:
+model ValidationQuestion {
+  id              String   @id @default(cuid())
+  text            String   @db.Text
+  priority        String   @default("NORMAL") // HIGH, NORMAL, LOW
+  escrowAmount    Float    @default(0)     // Allocated escrow for this question
+  paymentStatus   String   @default("PENDING") // PENDING, PAID, REFUNDED
+  minAnswerScore  Float    @default(80)
+  hasValidAnswer  Boolean  @default(false)
+  refundTriggered Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  idea              InstitutionalIdea    @relation(fields: [ideaId], references: [id])
+  ideaId            String
+  submittedBy       User                 @relation(fields: [submittedById], references: [id])
+  submittedById     String
+  escrowSource      EscrowContribution?  @relation(fields: [escrowSourceId], references: [id])
+  escrowSourceId    String?
+  answers           UserAnswer[]
+  paymentTransactions PaymentTransaction[]
+}

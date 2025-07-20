@@ -6,7 +6,7 @@ import ExpertProfileCard from '../components/ExpertProfileCard';
 import { 
   Shield, DollarSign, TrendingUp, Award, 
   FileText, Users, Clock, AlertCircle,
-  CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp
+  CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, Eye
 } from 'lucide-react';
 
 const ExpertDashboard = () => {
@@ -99,16 +99,7 @@ const ExpertDashboard = () => {
               className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm"
             >
               Logout
-            </button>            <button
-              onClick={() => {
-                localStorage.removeItem("token");
-                localStorage.removeItem("user");
-                navigate("/login");
-              }}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm"
-            >
-              Logout
-            </button>          </div>
+            </button>
         </div>
       </div>
 
@@ -276,6 +267,12 @@ const ExpertDashboard = () => {
                 >
                   Earnings History
                 </button>
+                <button
+                  onClick={() => navigate('/expert/patterns')}
+                  className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-left"
+                >
+                  Observable Patterns
+                </button>
               </div>
             </div>
 
@@ -306,6 +303,7 @@ const ExpertDashboard = () => {
         </div>
       </div>
     </div>
+      </div>
   );
 };
 

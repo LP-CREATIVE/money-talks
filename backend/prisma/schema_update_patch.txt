@@ -1,0 +1,41 @@
+// Update ValidationQuestion model - REMOVE bidAmount field only
+model ValidationQuestion {
+  id              String   @id @default(cuid())
+  text            String   @db.Text
+  isTop3          Boolean  @default(false)
+  questionSlot    Int?     // 1, 2, or 3 for top questions
+  escrowAmount    Float    @default(0)     // ADD: Allocated escrow for this question
+  paymentStatus   String   @default("PENDING") // ADD: PENDING, PAID, REFUNDED
+  minAnswerScore  Float    @default(80)
+  hasValidAnswer  Boolean  @default(false)
+  refundTriggered Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  
+  // Relations remain the same
+  idea              InstitutionalIdea    @relation(fields: [ideaId], references: [id])
+  ideaId            String
+  submittedBy       User                 @relation(fields: [submittedById], references: [id])
+  submittedById     String
+  escrowSource      EscrowContribution?  @relation(fields: [escrowSourceId], references: [id])
+  escrowSourceId    String?
+  answers           UserAnswer[]
+  paymentTransactions PaymentTransaction[] // ADD this relation
+}
+
+// ADD: PaymentTransaction model if it doesn't exist
+model PaymentTransaction {
+  id            String   @id @default(cuid())
+  questionId    String
+  question      ValidationQuestion @relation(fields: [questionId], references: [id])
+  answerId      String   @unique
+  answer        UserAnswer @relation(fields: [answerId], references: [id])
+  totalAmount   Float
+  expertAmount  Float
+  platformFee   Float
+  status        String   // PENDING, COMPLETED, FAILED
+  processedAt   DateTime?
+  createdAt     DateTime @default(now())
+  
+  @@index([questionId])
+  @@index([answerId])
+}

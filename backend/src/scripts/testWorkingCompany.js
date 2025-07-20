@@ -11,7 +11,7 @@ async function test() {
     data: {
       text: "How is Microsoft's Azure cloud division performing against AWS in enterprise market share?",
       ideaId: 'cmcqgnpx60005li6wy8oj8ouu',
-      bidAmount: 500
+      escrowAmount: 500
     }
   });
 

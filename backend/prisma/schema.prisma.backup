@@ -8,90 +8,106 @@ datasource db {
 }
 
 model User {
-  id                String   @id @default(cuid())
-  email             String   @unique
-  password          String
-  userType          UserType
-  organizationName  String?
-  walletBalance     Float    @default(0)
-  reputationScore   Int      @default(0)
-  isVerified        Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
+  id               String   @id @default(cuid())
+  email            String   @unique
+  password         String
+  userType         UserType
+  organizationName String?
+  walletBalance    Float    @default(0)
+  reputationScore  Int      @default(0)
+  isVerified       Boolean  @default(false)
+  referredBy       String?  // NEW: Track who referred this user
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
   // Relations
-  contributions     EscrowContribution[]
-  questions         ValidationQuestion[]
-  answers           UserAnswer[]
-  ideas             InstitutionalIdea[]
-  refunds           RefundTransaction[]
-  earnings          EarningTransaction[]
+  contributions      EscrowContribution[]
+  questions          ValidationQuestion[]
+  answers            UserAnswer[]
+  ideas              InstitutionalIdea[]
+  refunds            RefundTransaction[]
+  earnings           EarningTransaction[]
   answerInteractions AnswerInteraction[]
-  replies           Reply[]
-  expertAnswer      ExpertAnswer?  endorsementsMade  PeerEndorsement[]
-  expertProfile     ExpertProfile?}
+  replies            Reply[]
+  endorsementsMade   PeerEndorsement[]
+  expertProfile      ExpertProfile?
+  Notification       Notification[]
+  ExpertLead         ExpertLead?
+  
+  // NEW: Resale relations
+  resalePurchases    ResalePurchase[]     @relation("ResaleBuyer")
+  resaleSales        ResalePurchase[]     @relation("ResaleSeller")
+  
+  // NEW: Affiliate relations
+  affiliateProfile   AffiliateProfile?
+  referredUsers      AffiliateReferral[]  @relation("ReferredUser")
+  referrer           User?                @relation("Referrals", fields: [referredBy], references: [id])
+  referrals          User[]               @relation("Referrals")
+}
 
 model InstitutionalIdea {
-  id                String     @id @default(cuid())
-  title             String
-  summary           String     @db.Text
-  detailedPlan      String?    @db.Text
-  sector            String?
-  marketCap         String?
-  status            IdeaStatus @default(QUEUED)
-  totalEscrow       Float      @default(0)
-  escrowRank        Int?
-  isAIGenerated     Boolean    @default(false)
-  aiScore           Float?     @default(0)
-  aiScoreRating     String?    // GREAT_DEAL, GOOD_DEAL, FAIR_DEAL, OVERPRICED
-  aiScoreReasoning  String?    @db.Text
-  aiScoreUpdatedAt  DateTime?  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  
+  id               String     @id @default(cuid())
+  title            String
+  summary          String     @db.Text
+  detailedPlan     String?    @db.Text
+  sector           String?
+  marketCap        String?
+  status           IdeaStatus @default(QUEUED)
+  totalEscrow      Float      @default(0)
+  escrowRank       Int?
+  isAIGenerated    Boolean    @default(false)
+  aiScore          Float?     @default(0)
+  aiScoreRating    String? // GREAT_DEAL, GOOD_DEAL, FAIR_DEAL, OVERPRICED
+  aiScoreReasoning String?    @db.Text
+  aiScoreUpdatedAt DateTime?
+  expertSearchCriteria String?    @db.Text
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
   // Relations
-  createdBy         User?      @relation(fields: [createdById], references: [id])
-  createdById       String?
-  contributions     EscrowContribution[]
-  questions         ValidationQuestion[]
-  validations       IdeaValidation[]
+  createdBy     User?                @relation(fields: [createdById], references: [id])
+  createdById   String?
+  contributions EscrowContribution[]
+  questions     ValidationQuestion[]
+  validations   IdeaValidation[]
 }
 
 model EscrowContribution {
-  id                String   @id @default(cuid())
-  amount            Float
-  isRefundable      Boolean  @default(true)
-  wasRefunded       Boolean  @default(false)
-  refundDeadline    DateTime?
-  createdAt         DateTime @default(now())
-  
+  id             String    @id @default(cuid())
+  amount         Float
+  isRefundable   Boolean   @default(true)
+  wasRefunded    Boolean   @default(false)
+  refundDeadline DateTime?
+  createdAt      DateTime  @default(now())
+
   // Relations
-  user              User     @relation(fields: [userId], references: [id])
+  user              User                 @relation(fields: [userId], references: [id])
   userId            String
-  idea              InstitutionalIdea @relation(fields: [ideaId], references: [id])
+  idea              InstitutionalIdea    @relation(fields: [ideaId], references: [id])
   ideaId            String
   questionsFunded   ValidationQuestion[]
   refundTransaction RefundTransaction?
 }
 
 model ValidationQuestion {
-  id                String   @id @default(cuid())
-  text              String   @db.Text
-  isTop3            Boolean  @default(false)
-  questionSlot      Int?     // 1, 2, or 3 for top questions
-  bidAmount         Float    @default(0)
-  minAnswerScore    Float    @default(80) // Minimum score for valid answer
-  hasValidAnswer    Boolean  @default(false)
-  refundTriggered   Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  
+  id              String   @id @default(cuid())
+  text            String   @db.Text
+  isTop3          Boolean  @default(false)
+  questionSlot    Int? // 1, 2, or 3 for top questions
+  bidAmount       Float    @default(0)
+  minAnswerScore  Float    @default(80) // Minimum score for valid answer
+  hasValidAnswer  Boolean  @default(false)
+  refundTriggered Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
   // Relations
-  idea              InstitutionalIdea @relation(fields: [ideaId], references: [id])
-  ideaId            String
-  submittedBy       User     @relation(fields: [submittedById], references: [id])
-  submittedById     String
-  escrowSource      EscrowContribution? @relation(fields: [escrowSourceId], references: [id])
-  escrowSourceId    String?
-  answers           UserAnswer[]
+  idea           InstitutionalIdea   @relation(fields: [ideaId], references: [id])
+  ideaId         String
+  submittedBy    User                @relation(fields: [submittedById], references: [id])
+  submittedById  String
+  escrowSource   EscrowContribution? @relation(fields: [escrowSourceId], references: [id])
+  escrowSourceId String?
+  answers        UserAnswer[]
 }
 
 model UserAnswer {
@@ -107,31 +123,108 @@ model UserAnswer {
   dislikes          Int      @default(0)
   flags             Int      @default(0)
   isHidden          Boolean  @default(false)
+  
+  // NEW: Resale fields
+  isListedForResale    Boolean   @default(false)
+  resalePrice          Float?
+  resaleCount          Int       @default(0)
+  totalResaleRevenue   Float     @default(0)
+  listedForResaleAt    DateTime?
+  
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-  
+
   // Relations
-  question          ValidationQuestion @relation(fields: [questionId], references: [id])
-  questionId        String
-  user              User     @relation(fields: [userId], references: [id])
-  userId            String
-  validations       AnswerValidation[]
+  question           ValidationQuestion  @relation(fields: [questionId], references: [id])
+  questionId         String
+  user               User                @relation(fields: [userId], references: [id])
+  userId             String
+  validations        AnswerValidation[]
   earningTransaction EarningTransaction?
-  interactions      AnswerInteraction[]
-  replies           Reply[]
-  expertAnswer      ExpertAnswer?  endorsementsMade  PeerEndorsement[]
-  expertProfile     ExpertProfile?}
+  interactions       AnswerInteraction[]
+  replies            Reply[]
+  ExpertAnswer       ExpertAnswer?
+  resalePurchases    ResalePurchase[]    @relation("AnswerResales") // NEW
+  
+  @@index([isListedForResale]) // NEW
+}
+
+// NEW: Resale Purchase Model
+model ResalePurchase {
+  id                   String    @id @default(cuid())
+  answerId             String
+  answer               UserAnswer @relation("AnswerResales", fields: [answerId], references: [id])
+  buyerId              String
+  buyer                User      @relation("ResaleBuyer", fields: [buyerId], references: [id])
+  sellerId             String
+  seller               User      @relation("ResaleSeller", fields: [sellerId], references: [id])
+  purchasePrice        Float
+  platformFee          Float     // 30% to platform
+  sellerEarnings       Float     // 50% to original buyer
+  expertRoyalty        Float     // 20% to expert
+  transactionStatus    TransactionStatus @default(PENDING)
+  stripePaymentIntentId String?
+  createdAt            DateTime  @default(now())
+  completedAt          DateTime?
+  
+  @@index([answerId])
+  @@index([buyerId])
+  @@index([sellerId])
+}
+
+// NEW: Affiliate Models
+model AffiliateProfile {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id])
+  referralCode     String    @unique
+  totalEarnings    Float     @default(0)
+  pendingEarnings  Float     @default(0)
+  paidEarnings     Float     @default(0)
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  referrals        AffiliateReferral[]
+  earnings         AffiliateEarning[]
+}
+
+model AffiliateReferral {
+  id              String    @id @default(cuid())
+  affiliateId     String
+  affiliate       AffiliateProfile @relation(fields: [affiliateId], references: [id])
+  referredUserId  String
+  referredUser    User      @relation("ReferredUser", fields: [referredUserId], references: [id])
+  status          ReferralStatus @default(ACTIVE)
+  createdAt       DateTime  @default(now())
+  
+  @@index([affiliateId])
+}
+
+model AffiliateEarning {
+  id                  String    @id @default(cuid())
+  affiliateId         String
+  affiliate           AffiliateProfile @relation(fields: [affiliateId], references: [id])
+  sourceTransactionId String
+  sourceType          EarningSourceType
+  amount              Float
+  status              TransactionStatus @default(PENDING)
+  createdAt           DateTime  @default(now())
+  paidAt              DateTime?
+  
+  @@index([affiliateId])
+}
 
 model AnswerInteraction {
-  id        String   @id @default(cuid())
+  id        String          @id @default(cuid())
   answerId  String
-  answer    UserAnswer @relation(fields: [answerId], references: [id])
+  answer    UserAnswer      @relation(fields: [answerId], references: [id])
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User            @relation(fields: [userId], references: [id])
   type      InteractionType
-  reason    String?  // For flags
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  reason    String? // For flags
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 
   @@unique([answerId, userId, type])
   @@index([answerId])
@@ -139,21 +232,21 @@ model AnswerInteraction {
 }
 
 model Reply {
-  id           String    @id @default(cuid())
-  answerId     String
-  answer       UserAnswer @relation(fields: [answerId], references: [id])
+  id            String     @id @default(cuid())
+  answerId      String
+  answer        UserAnswer @relation(fields: [answerId], references: [id])
   parentReplyId String?
-  parentReply   Reply?    @relation("ReplyToReply", fields: [parentReplyId], references: [id])
-  childReplies  Reply[]   @relation("ReplyToReply")
-  userId       String
-  user         User      @relation(fields: [userId], references: [id])
-  content      String    @db.Text
-  likes        Int       @default(0)
-  dislikes     Int       @default(0)
-  isDeleted    Boolean   @default(false)
-  editedAt     DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  parentReply   Reply?     @relation("ReplyToReply", fields: [parentReplyId], references: [id])
+  childReplies  Reply[]    @relation("ReplyToReply")
+  userId        String
+  user          User       @relation(fields: [userId], references: [id])
+  content       String     @db.Text
+  likes         Int        @default(0)
+  dislikes      Int        @default(0)
+  isDeleted     Boolean    @default(false)
+  editedAt      DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   @@index([answerId])
   @@index([parentReplyId])
@@ -161,53 +254,289 @@ model Reply {
 }
 
 model IdeaValidation {
-  id                String   @id @default(cuid())
-  vote              Int      // +1 or -1
-  comment           String?  @db.Text
-  createdAt         DateTime @default(now())
-  
+  id        String   @id @default(cuid())
+  vote      Int // +1 or -1
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+
   // Relations
-  idea              InstitutionalIdea @relation(fields: [ideaId], references: [id])
-  ideaId            String
+  idea   InstitutionalIdea @relation(fields: [ideaId], references: [id])
+  ideaId String
 }
 
 model AnswerValidation {
-  id                String   @id @default(cuid())
-  score             Float    // 0-100
-  feedback          String?  @db.Text
-  validationType    ValidationType
-  createdAt         DateTime @default(now())
-  
+  id             String         @id @default(cuid())
+  score          Float // 0-100
+  feedback       String?        @db.Text
+  validationType ValidationType
+  createdAt      DateTime       @default(now())
+
   // Relations
-  answer            UserAnswer @relation(fields: [answerId], references: [id])
-  answerId          String
+  answer   UserAnswer @relation(fields: [answerId], references: [id])
+  answerId String
 }
 
 model RefundTransaction {
-  id                String   @id @default(cuid())
-  amount            Float
-  reason            String
-  processedAt       DateTime @default(now())
-  
+  id          String   @id @default(cuid())
+  amount      Float
+  reason      String
+  processedAt DateTime @default(now())
+
   // Relations
-  user              User     @relation(fields: [userId], references: [id])
-  userId            String
-  escrow            EscrowContribution @relation(fields: [escrowId], references: [id])
-  escrowId          String   @unique
+  user     User               @relation(fields: [userId], references: [id])
+  userId   String
+  escrow   EscrowContribution @relation(fields: [escrowId], references: [id])
+  escrowId String             @unique
 }
 
 model EarningTransaction {
-  id                String   @id @default(cuid())
-  amount            Float
-  status            TransactionStatus @default(PENDING)
-  processedAt       DateTime?
-  createdAt         DateTime @default(now())
-  
+  id          String            @id @default(cuid())
+  amount      Float
+  status      TransactionStatus @default(PENDING)
+  processedAt DateTime?
+  createdAt   DateTime          @default(now())
+
   // Relations
-  user              User     @relation(fields: [userId], references: [id])
-  userId            String
-  answer            UserAnswer @relation(fields: [answerId], references: [id])
-  answerId          String   @unique
+  user     User       @relation(fields: [userId], references: [id])
+  userId   String
+  answer   UserAnswer @relation(fields: [answerId], references: [id])
+  answerId String     @unique
+}
+
+// Expert Verification Models
+model ExpertProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Professional Identity
+  fullName         String
+  currentRole      String?
+  currentEmployer  String?
+  employerVerified Boolean @default(false)
+  yearsInIndustry  Int     @default(0)
+
+  // Expertise Areas
+  primaryIndustry       String?
+  secondaryIndustries   String[]
+  subIndustries         String[]
+  functionalExpertise   Json? // {primary: string, secondary: string[]}
+  specificExpertiseTags String[]
+  geographicExpertise   String[]
+
+  // Verification Metadata
+  verificationLevel    Int       @default(0) // 0-4
+  verificationScore    Float     @default(0) // 0-100
+  lastVerificationDate DateTime?
+  flagsOrWarnings      String[]
+
+  // Self Assessment
+  confidenceRating     Int? // 1-10
+  uncertaintyAwareness String? @db.Text
+
+  // Activity & Performance
+  lastActiveDate      DateTime @default(now())
+  responseRate        Float    @default(0)
+  averageResponseTime Int      @default(0) // in hours
+  accuracyScore       Float    @default(0)
+  totalEarnings       Float    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  verificationEvidence VerificationEvidence[]
+  education            Education[]
+  certifications       Certification[]
+  licenses             ProfessionalLicense[]
+  domainTests          DomainTest[]
+  references           ProfessionalReference[]
+  endorsements         PeerEndorsement[]
+  ExpertAnswer         ExpertAnswer[]
+}
+
+model VerificationEvidence {
+  id              String        @id @default(cuid())
+  expertProfileId String
+  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id])
+
+  evidenceType EvidenceType
+  uploaded     Boolean      @default(false)
+  verified     Boolean      @default(false)
+  verifiedAt   DateTime?
+  verifiedBy   String? // Admin user ID
+  url          String?      @db.Text
+  metadata     Json? // Store additional verification data
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([expertProfileId, evidenceType])
+}
+
+model Education {
+  id              String        @id @default(cuid())
+  expertProfileId String
+  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id])
+
+  degree           String
+  institution      String
+  graduationYear   Int
+  verified         Boolean @default(false)
+  verificationData Json?
+
+  createdAt DateTime @default(now())
+}
+
+model Certification {
+  id              String        @id @default(cuid())
+  expertProfileId String
+  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id])
+
+  name             String
+  issuer           String
+  dateObtained     DateTime
+  expiryDate       DateTime?
+  verified         Boolean   @default(false)
+  verificationData Json?
+
+  createdAt DateTime @default(now())
+}
+
+model ProfessionalLicense {
+  id              String        @id @default(cuid())
+  expertProfileId String
+  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id])
+
+  type             String
+  number           String
+  state            String
+  verified         Boolean @default(false)
+  verificationData Json?
+
+  createdAt DateTime @default(now())
+}
+
+model DomainTest {
+  id              String        @id @default(cuid())
+  expertProfileId String
+  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id])
+
+  domain    String
+  dateTaken DateTime @default(now())
+  score     Float
+  questions Json // Array of questions
+  answers   Json // Array of answers
+
+  createdAt DateTime @default(now())
+}
+
+model ProfessionalReference {
+  id              String        @id @default(cuid())
+  expertProfileId String
+  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id])
+
+  name            String
+  title           String
+  company         String
+  email           String
+  verified        Boolean   @default(false)
+  verifiedAt      DateTime?
+  endorsementText String?   @db.Text
+
+  createdAt DateTime @default(now())
+}
+
+model PeerEndorsement {
+  id              String        @id @default(cuid())
+  expertProfileId String
+  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id])
+
+  endorserId    String
+  endorser      User     @relation(fields: [endorserId], references: [id])
+  endorserLevel Int // Verification level of endorser
+  skills        String[]
+  text          String   @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@unique([expertProfileId, endorserId])
+}
+
+model ExpertAnswer {
+  id              String        @id @default(cuid())
+  expertProfileId String
+  expertProfile   ExpertProfile @relation(fields: [expertProfileId], references: [id])
+
+  answerId       String     @unique
+  answer         UserAnswer @relation(fields: [answerId], references: [id])
+  questionValue  Float
+  rating         Float?
+  clientVerified Boolean    @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType
+  title     String
+  message   String
+  data      Json? // Store questionId, matchScore, etc.
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId, read])
+  @@index([createdAt])
+}
+
+model ExpertLead {
+  id              String   @id @default(cuid())
+  firstName       String
+  lastName        String
+  email           String   @unique
+  emailConfidence Int?
+  emailSource     String?
+  title           String?
+  company         String?
+  department      String?
+  seniority       String?
+  linkedinUrl     String?
+  skills          String[]
+  status          String   @default("PENDING_OUTREACH")
+
+  invitedAt    DateTime?
+  registeredAt DateTime?
+  userId       String?   @unique
+  user         User?     @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AIPhilosophy {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  content   String   @db.Text
+  category  String   // GENERAL, SCORING, QUESTIONS, IDEAS
+  weight    Float    @default(1.0)
+  active    Boolean  @default(true)
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AIPromptTemplate {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  template     String   @db.Text
+  philosophies String[]
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 // Enums
@@ -243,181 +572,6 @@ enum InteractionType {
   FLAG
 }
 
-// Expert Verification Models
-model ExpertProfile {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  user              User     @relation(fields: [userId], references: [id])
-  
-  // Professional Identity
-  fullName          String
-  currentRole       String?
-  currentEmployer   String?
-  employerVerified  Boolean  @default(false)
-  yearsInIndustry   Int      @default(0)
-  
-  // Expertise Areas
-  primaryIndustry   String?
-  secondaryIndustries String[]
-  subIndustries     String[]
-  functionalExpertise Json?  // {primary: string, secondary: string[]}
-  specificExpertiseTags String[]
-  geographicExpertise String[]
-  
-  // Verification Metadata
-  verificationLevel Int      @default(0) // 0-4
-  verificationScore Float    @default(0) // 0-100
-  lastVerificationDate DateTime?
-  flagsOrWarnings   String[]
-  
-  // Self Assessment
-  confidenceRating  Int?     // 1-10
-  uncertaintyAwareness String? @db.Text
-  
-  // Activity & Performance
-  lastActiveDate    DateTime @default(now())
-  responseRate      Float    @default(0)
-  averageResponseTime Int    @default(0) // in hours
-  accuracyScore     Float    @default(0)
-  totalEarnings     Float    @default(0)
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  verificationEvidence VerificationEvidence[]
-  education         Education[]
-  certifications    Certification[]
-  licenses          ProfessionalLicense[]
-  domainTests       DomainTest[]
-  references        ProfessionalReference[]
-  endorsements      PeerEndorsement[]
-  expertAnswers     ExpertAnswer[]
-}
-
-model VerificationEvidence {
-  id                String   @id @default(cuid())
-  expertProfileId   String
-  expertProfile     ExpertProfile @relation(fields: [expertProfileId], references: [id])
-  
-  evidenceType      EvidenceType
-  uploaded          Boolean  @default(false)
-  verified          Boolean  @default(false)
-  verifiedAt        DateTime?
-  verifiedBy        String?  // Admin user ID
-  url               String?  @db.Text
-  metadata          Json?    // Store additional verification data
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  @@unique([expertProfileId, evidenceType])
-}
-
-model Education {
-  id                String   @id @default(cuid())
-  expertProfileId   String
-  expertProfile     ExpertProfile @relation(fields: [expertProfileId], references: [id])
-  
-  degree            String
-  institution       String
-  graduationYear    Int
-  verified          Boolean  @default(false)
-  verificationData  Json?
-  
-  createdAt         DateTime @default(now())
-}
-
-model Certification {
-  id                String   @id @default(cuid())
-  expertProfileId   String
-  expertProfile     ExpertProfile @relation(fields: [expertProfileId], references: [id])
-  
-  name              String
-  issuer            String
-  dateObtained      DateTime
-  expiryDate        DateTime?
-  verified          Boolean  @default(false)
-  verificationData  Json?
-  
-  createdAt         DateTime @default(now())
-}
-
-model ProfessionalLicense {
-  id                String   @id @default(cuid())
-  expertProfileId   String
-  expertProfile     ExpertProfile @relation(fields: [expertProfileId], references: [id])
-  
-  type              String
-  number            String
-  state             String
-  verified          Boolean  @default(false)
-  verificationData  Json?
-  
-  createdAt         DateTime @default(now())
-}
-
-model DomainTest {
-  id                String   @id @default(cuid())
-  expertProfileId   String
-  expertProfile     ExpertProfile @relation(fields: [expertProfileId], references: [id])
-  
-  domain            String
-  dateTaken         DateTime @default(now())
-  score             Float
-  questions         Json     // Array of questions
-  answers           Json     // Array of answers
-  
-  createdAt         DateTime @default(now())
-}
-
-model ProfessionalReference {
-  id                String   @id @default(cuid())
-  expertProfileId   String
-  expertProfile     ExpertProfile @relation(fields: [expertProfileId], references: [id])
-  
-  name              String
-  title             String
-  company           String
-  email             String
-  verified          Boolean  @default(false)
-  verifiedAt        DateTime?
-  endorsementText   String?  @db.Text
-  
-  createdAt         DateTime @default(now())
-}
-
-model PeerEndorsement {
-  id                String   @id @default(cuid())
-  expertProfileId   String
-  expertProfile     ExpertProfile @relation(fields: [expertProfileId], references: [id])
-  
-  endorserId        String
-  endorser          User     @relation(fields: [endorserId], references: [id])
-  endorserLevel     Int      // Verification level of endorser
-  skills            String[]
-  text              String   @db.Text
-  
-  createdAt         DateTime @default(now())
-  
-  @@unique([expertProfileId, endorserId])
-}
-
-model ExpertAnswer {
-  id                String   @id @default(cuid())
-  expertProfileId   String
-  expertProfile     ExpertProfile @relation(fields: [expertProfileId], references: [id])
-  
-  answerId          String   @unique
-  answer            UserAnswer @relation(fields: [answerId], references: [id])
-  questionValue     Float
-  rating            Float?
-  clientVerified    Boolean  @default(false)
-  
-  createdAt         DateTime @default(now())
-}
-
-// Enums
 enum EvidenceType {
   PAYSTUB
   WORK_BADGE
@@ -425,4 +579,24 @@ enum EvidenceType {
   LINKEDIN_PROFILE
   WORK_EMAIL_DOMAIN
   VIDEO_INTRODUCTION
+}
+
+enum NotificationType {
+  QUESTION_MATCH
+  ANSWER_ACCEPTED
+  ANSWER_REJECTED
+  PAYMENT_RECEIVED
+  GENERAL
+}
+
+// NEW: Additional enums for resale and affiliate features
+enum ReferralStatus {
+  ACTIVE
+  INACTIVE
+  TERMINATED
+}
+
+enum EarningSourceType {
+  ANSWER_SALE
+  RESALE
 }

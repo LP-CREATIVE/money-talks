@@ -104,16 +104,16 @@ const ExpertQuestionDetail = () => {
             <div className="flex items-center gap-2 px-4 py-2 bg-green-900/20 border border-green-700 rounded-lg">
               <DollarSign className="text-green-400" size={20} />
               <span className="text-green-400 font-semibold">
-                ${question?.idea?.contributions?.reduce((sum, c) => !c.wasRefunded ? sum + c.amount : sum, 0) || question?.bidAmount || 0}
+                ${(() => {
+                  const totalEscrow = question?.idea?.contributions?.reduce((sum, c) => !c.wasRefunded ? sum + c.amount : sum, 0) || question?.escrowAmount || 0;
+                  const researcherPool = totalEscrow * 0.5;
+                  const questionCount = question?.idea?._count?.questions || question?.idea?.questions?.length || 1;
+                  const rewardPerQuestion = Math.floor(researcherPool / questionCount);
+                  return rewardPerQuestion.toLocaleString();
+                          })()}
               </span>
             </div>
           </div>
-
-          <div className="border-t border-gray-700 pt-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Question</h3>
-            <p className="text-gray-300 leading-relaxed">{question?.text}</p>
-          </div>
-
           <div className="flex items-center gap-4 mt-4 text-sm text-gray-500">
             <div className="flex items-center gap-2">
               <Building size={16} />
@@ -160,10 +160,7 @@ const ExpertQuestionDetail = () => {
             )}
           </div>
         ) : (
-          <ExpertAnswerForm 
-            question={question} 
-            onSuccess={() => fetchQuestionDetails()} 
-          />
+          <ExpertAnswerForm question={question} onSuccess={() => fetchQuestionDetails()} />
         )}
       </div>
     </div>

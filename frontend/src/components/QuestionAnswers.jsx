@@ -33,7 +33,7 @@ const QuestionAnswers = ({ question, currentUserId, onClose }) => {
                   <h2 className="text-xl font-bold text-white mb-2">Question Answers</h2>
                   <p className="text-gray-300">{question.text}</p>
                   <div className="flex gap-4 mt-2 text-sm text-gray-400">
-                    <span>Bid: ${question.bidAmount}</span>
+                    <span>Escrow: ${question.escrowAmount}</span>
                     <span>Min Score: {question.minAnswerScore}</span>
                     <span>{questionAnswers.length} answers</span>
                   </div>

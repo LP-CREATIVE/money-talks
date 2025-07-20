@@ -109,7 +109,7 @@ async function setupTestData() {
         text: "What is Tesla's battery cost per kWh outlook for 2025 given current supplier dynamics in China?",
         isTop3: true,
         questionSlot: 1,
-        bidAmount: 500,
+        escrowAmount: 500,
         ideaId: idea.id,
         submittedById: institutionalUser.id,
         escrowSourceId: escrow.id,

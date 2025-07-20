@@ -1,0 +1,116 @@
+import axios from 'axios';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+export const auth = {
+  register: (data) => api.post('/auth/register', data),
+  login: (data) => api.post('/auth/login', data),
+  getMe: () => api.get('/auth/me'),
+};
+
+export const ideas = {
+  getAll: (params) => api.get('/ideas', { params }),
+  getById: (id) => api.get(`/ideas/${id}`),
+  create: (data) => api.post('/ideas', data),
+  updateRankings: () => api.post('/ideas/update-rankings'),
+};
+
+export const escrow = {
+  contribute: (data) => api.post('/escrow/contribute', data),
+  getMyContributions: () => api.get('/escrow/my-contributions'),
+  getIdeaContributions: (ideaId) => api.get(`/escrow/idea/${ideaId}`),
+};
+
+export const questions = {
+  add: (data) => api.post('/questions/add', data),
+  getByIdea: (ideaId) => api.get(`/questions/idea/${ideaId}`),
+  getById: (id) => api.get(`/questions/${id}`),
+  bid: (data) => api.post('/questions/bid', data),
+  getMinimumEscrow: () => api.get('/questions/minimum-escrow'),
+};
+
+export const matching = {
+  findExperts: (questionId, params = {}) => 
+    api.get(`/matching/question/${questionId}/experts`, { params }),
+  notifyExperts: (questionId, expertIds) => 
+    api.post(`/matching/question/${questionId}/notify`, { expertIds }),
+};
+
+export const answers = {
+  submitExpert: (data) => api.post('/answers/expert', data),
+  getByQuestion: (questionId) => api.get(`/answers/question/${questionId}`),
+  rate: (answerId, data) => api.post(`/answers/${answerId}/rate`, data),
+  getMyAnswers: () => api.get('/answers/expert/my-answers'),
+  deleteAnswer: (answerId) => api.delete(`/answers/expert/answers/${answerId}`),};
+
+export const expert = {
+  getProfile: () => api.get('/expert/profile'),
+  updateProfile: (data) => api.post('/expert/profile', data),
+  submitEvidence: (data) => api.post('/expert/evidence', data),
+  getVerificationStatus: () => api.get('/expert/verification-status'),
+  getQuestions: () => api.get('/expert/questions'),
+};
+
+
+export const philosophy = {
+  getAll: (params) => api.get("/philosophy", { params }),
+  create: (data) => api.post("/philosophy", data),
+  update: (id, data) => api.put(`/philosophy/${id}`, data),
+  delete: (id) => api.delete(`/philosophy/${id}`),
+  toggle: (id) => api.post(`/philosophy/${id}/toggle`),
+};
+export default api;
+
+export const resale = {
+  // List an answer for resale
+  listAnswer: (data) => api.post('/resale/list', data),
+  
+  // Get marketplace listings
+  getMarketplace: (params = {}) => api.get('/resale/marketplace', { params }),
+  
+  // Purchase a resale listing
+  purchase: (data) => api.post('/resale/purchase', data),
+  
+  // Confirm purchase after payment
+  confirmPurchase: (data) => api.post('/resale/purchase/confirm', data),
+  
+  // Get user's resale activity
+  getMyActivity: () => api.get('/resale/my-activity'),
+  
+  // Remove answer from resale
+  unlist: (answerId) => api.delete(`/resale/unlist/${answerId}`)
+};
+
+export const affiliate = {
+  // Get affiliate dashboard data
+  getDashboard: () => api.get('/affiliate/dashboard'),
+  
+  // Get referral link
+  getReferralLink: () => api.get('/affiliate/referral-link'),
+  
+  // Get earnings history
+  getEarnings: (params) => api.get('/affiliate/earnings', { params }),
+  
+  // Request payout
+  requestPayout: (data) => api.post('/affiliate/payout', data)
+};

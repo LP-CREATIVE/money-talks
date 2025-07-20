@@ -202,11 +202,11 @@ const ResearcherIdeaView = () => {
                               by {question.submittedBy.organizationName}
                             </p>
                           </div>
-                          {question.bidAmount > 0 && (
+                          {question.escrowAmount > 0 && (
                             <div className="text-right ml-4">
                               <p className="text-xs text-gray-400">Bid Amount</p>
                               <p className="text-sm font-semibold text-green-500">
-                                {formatCurrency(question.bidAmount)}
+                                {formatCurrency(question.escrowAmount)}
                               </p>
                             </div>
                           )}

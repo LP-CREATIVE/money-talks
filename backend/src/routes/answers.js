@@ -1,33 +1,20 @@
 const express = require('express');
 const router = express.Router();
-const { body } = require('express-validator');
-const { authenticate } = require('../middleware/auth');
+const upload = require('../middleware/upload');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const answersController = require('../controllers/answersController');
 
-// Submit answer as expert
-router.post(
-  '/submit',
-  authenticate,
-  [
-    body('questionId').notEmpty().withMessage('Question ID is required'),
-    body('content').isLength({ min: 100 }).withMessage('Answer must be at least 100 characters'),
-    body('sources').optional().isArray().withMessage('Sources must be an array')
-  ],
-  answersController.submitExpertAnswer
-);
+// Expert routes - use only requireAuth (which is the same as authenticate)
+router.post('/expert', requireAuth, answersController.submitExpertAnswer);
+router.get('/expert/my-answers', requireAuth, answersController.getExpertAnswers);
+router.delete("/expert/answers/:answerId", requireAuth, answersController.deleteAnswer);
+// General routes (accessible by authenticated users)
+router.get('/question/:questionId', requireAuth, answersController.getAnswersByQuestion);
+router.get('/idea/:ideaId', requireAuth, answersController.getAnswersByIdea);
 
-// Get answers for a question
-router.get('/question/:questionId', authenticate, answersController.getQuestionAnswers);
+// Admin routes - requireAdmin should include authentication
+router.put('/:answerId/status', requireAdmin, answersController.updateAnswerStatus);
 
-// Rate an answer (institutional users only)
-router.post(
-  '/:answerId/rate',
-  authenticate,
-  [
-    body('rating').isFloat({ min: 0, max: 100 }).withMessage('Rating must be between 0 and 100'),
-    body('feedback').optional().isString()
-  ],
-  answersController.rateAnswer
-);
-
+// File upload route
+router.post('/upload', requireAuth, upload.single('file'), answersController.uploadAnswerFile);
 module.exports = router;

@@ -1,0 +1,7 @@
+    const expertAnswer = await prisma.ExpertAnswer.create({
+      data: {
+        answerId: answer.id,
+        expertProfile: { connect: { userId: expertId } },
+        questionValue: questionValue
+      }
+    });
