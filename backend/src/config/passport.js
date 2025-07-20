@@ -12,7 +12,7 @@ const prisma = new PrismaClient();
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: "/api/auth/google/callback"
+  callbackURL: process.env.GOOGLE_CALLBACK_URL || "https://insightexchange-production.up.railway.app/api/auth/google/callback"
 }, async (accessToken, refreshToken, profile, done) => {
   try {
     let user = await prisma.user.findUnique({
@@ -40,7 +40,7 @@ passport.use(new GoogleStrategy({
 passport.use(new LinkedInStrategy({
   clientID: process.env.LINKEDIN_CLIENT_ID,
   clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
-  callbackURL: "/api/auth/linkedin/callback",
+  callbackURL: process.env.LINKEDIN_CALLBACK_URL || "https://insightexchange-production.up.railway.app/api/auth/linkedin/callback",
   scope: ['r_emailaddress', 'r_liteprofile']
 }, async (accessToken, refreshToken, profile, done) => {
   try {
