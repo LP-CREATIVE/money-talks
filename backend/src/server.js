@@ -9,6 +9,9 @@ const compression = require('compression');
 require('dotenv').config();
 
 const app = express();
+
+// Trust proxy for Railway HTTPS
+app.set("trust proxy", true);
 const PORT = process.env.PORT || 3001;
 
 // Middleware
